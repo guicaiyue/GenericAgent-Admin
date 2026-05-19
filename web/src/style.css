@@ -1085,3 +1085,163 @@ pre, code { background:#f7f7f7; color:#111; }
   background:#f5f5f5;
   border-color:#cfcfcf;
 }
+
+/* Chat image input: picker, paste, drag and thumbnail previews */
+.oa-composer.is-dragging{
+  border-color:#10a37f !important;
+  box-shadow:0 0 0 3px rgba(16,163,127,.14), 0 10px 36px rgba(0,0,0,.12) !important;
+  background:#fbfffd !important;
+}
+.oa-composer .oa-attachments{
+  grid-column:1 / -1 !important;
+  display:flex !important;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:2px 0 6px;
+}
+.oa-image-chip{
+  position:relative;
+  width:76px;
+  height:76px;
+  border:1px solid #e5e5e5;
+  border-radius:14px;
+  overflow:hidden;
+  background:#f7f7f7;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.oa-image-chip img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.oa-image-chip button{
+  position:absolute !important;
+  top:4px;
+  right:4px;
+  width:22px !important;
+  height:22px !important;
+  min-width:22px !important;
+  min-height:22px !important;
+  flex:0 0 22px !important;
+  grid-column:auto !important;
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  padding:0 !important;
+  border:0;
+  border-radius:50%;
+  background:rgba(0,0,0,.62);
+  color:#fff;
+  cursor:pointer;
+}
+.oa-image-chip span{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  padding:3px 5px;
+  background:linear-gradient(transparent, rgba(0,0,0,.62));
+  color:#fff;
+  font-size:10px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.oa-composer-actions{
+  grid-column:1 / -1 !important;
+  display:flex !important;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.oa-composer-actions .oa-left-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.oa-composer-actions .oa-right-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.oa-composer .oa-image-button{
+  grid-column:auto !important;
+  width:36px !important;
+  height:36px !important;
+  min-width:36px !important;
+  min-height:36px !important;
+  flex:0 0 36px !important;
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  padding:0 !important;
+  border:0;
+  border-radius:50%;
+  background:#f4f4f4;
+  color:#444;
+  cursor:pointer;
+}
+.oa-composer .oa-image-button:hover{ background:#ececec; color:#111; }
+.oa-message-images{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:2px 0 10px;
+}
+.oa-message-images img{
+  max-width:min(260px,100%);
+  max-height:220px;
+  object-fit:contain;
+  border:1px solid #e5e5e5;
+  border-radius:14px;
+  background:#f7f7f7;
+}
+@media (max-width: 680px){
+  .oa-composer-actions{align-items:stretch; flex-direction:column;}
+  .oa-composer-actions .oa-right-actions{justify-content:space-between;}
+  .oa-composer-model{max-width:100%; width:100%;}
+}
+
+/* Final composer layout override for image attachments (matches ChatApp.jsx classes) */
+.oa-composer{
+  grid-template-columns:minmax(0,1fr) !important;
+  align-items:stretch !important;
+  gap:8px !important;
+}
+.oa-composer .oa-attach-preview{
+  grid-column:1 / -1 !important;
+  display:flex !important;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:2px 0 4px;
+}
+.oa-composer textarea,
+.oa-composer textarea:not(.file-editor){
+  grid-column:1 / -1 !important;
+}
+.oa-composer .oa-composer-bar{
+  grid-column:1 / -1 !important;
+  display:flex !important;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.oa-composer .oa-attach-btn,
+.oa-composer .oa-send,
+.oa-composer button.oa-attach-btn,
+.oa-composer button.oa-send{
+  grid-column:auto !important;
+  justify-self:auto !important;
+}
+.oa-composer .oa-composer-model{
+  margin-left:auto;
+}
+.oa-composer .oa-attach-btn{
+  flex:0 0 auto !important;
+}
+.oa-composer .oa-send{
+  flex:0 0 36px !important;
+}

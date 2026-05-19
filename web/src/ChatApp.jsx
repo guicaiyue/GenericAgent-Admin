@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileText, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -323,7 +323,10 @@ export default function ChatApp() {
   const [menuOpen, setMenuOpen] = useState('')
   const [editing, setEditing] = useState('')
   const [draftTitle, setDraftTitle] = useState('')
+  const [attachments, setAttachments] = useState([])
+  const [dragging, setDragging] = useState(false)
   const endRef = useRef(null)
+  const fileRef = useRef(null)
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
 
   const loadChatState = async (id) => {
@@ -388,9 +391,39 @@ export default function ChatApp() {
     setNotice('模型已切换')
   }
 
+  const addImageFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith('image/'))
+    if (!files.length) return
+    const tooLarge = files.find(f => f.size > 8 * 1024 * 1024)
+    if (tooLarge) { setErr(`图片过大：${tooLarge.name}，单张限制 8MB`); return }
+    const readOne = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ id:`img-${Date.now()}-${Math.random().toString(16).slice(2)}`, name:file.name || `pasted-${Date.now()}.png`, type:file.type || 'image/png', size:file.size || 0, dataURL:String(reader.result || '') })
+      reader.onerror = () => reject(reader.error || new Error('读取图片失败'))
+      reader.readAsDataURL(file)
+    })
+    try {
+      const next = await Promise.all(files.map(readOne))
+      setAttachments(xs => [...xs, ...next].slice(0, 8))
+      setErr('')
+    } catch (e) { setErr(e.message || String(e)) }
+  }
+
+  const removeAttachment = (id) => setAttachments(xs => xs.filter(x => x.id !== id))
+  const onPaste = (e) => {
+    const imgs = Array.from(e.clipboardData?.files || []).filter(f => f.type?.startsWith('image/'))
+    if (imgs.length) addImageFiles(imgs)
+  }
+  const onDropImages = (e) => {
+    e.preventDefault(); setDragging(false)
+    addImageFiles(e.dataTransfer?.files)
+  }
+
+
   const send = async () => {
     const text = prompt.trim()
-    if (!text || busy) return
+    const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
+    if ((!text && !files.length) || busy) return
     setBusy(true); setErr(''); setNotice('')
     let id = sid
     try {
@@ -399,11 +432,12 @@ export default function ChatApp() {
         id = d.id; setSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
       }
       const clientUserID = `u-${Date.now()}`
-      setPrompt('')
-      const optimistic = { id:clientUserID, role:'user', content:text, created_at:Math.floor(Date.now()/1000) }
+      setPrompt(''); setAttachments([])
+      const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
+      const optimistic = { id:clientUserID, role:'user', content:(text || '请分析这张图片') + fileNote, files, created_at:Math.floor(Date.now()/1000) }
       const pending = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }
       setMessages(xs => [...xs, optimistic, pending])
-      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text, settings:{ llm_no: llmNo }, client_user_id:clientUserID }) })
+      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: llmNo }, client_user_id:clientUserID }) })
       if (!res.ok) throw new Error(await res.text())
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
@@ -484,6 +518,7 @@ export default function ChatApp() {
           <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
           <div className="oa-bubble">
             <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
+            {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
             {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} /> : <MarkdownBlock text={m.content} />}
           </div>
         </article>)}
@@ -491,16 +526,23 @@ export default function ChatApp() {
       </section>
 
       <footer className="oa-composer-wrap">
-        <div className="oa-composer">
-          <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息…" rows={1}/>
+        <div className={`oa-composer ${dragging ? 'is-dragging' : ''}`} onDragOver={e=>{e.preventDefault(); setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={onDropImages}>
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e=>{ addImageFiles(e.target.files); e.target.value='' }} />
+          {attachments.length > 0 && <div className="oa-attach-preview">
+            {attachments.map(a => <div className="oa-attach-thumb" key={a.id}>
+              <img src={a.dataURL} alt={a.name}/><span><FileImage size={12}/>{a.name}</span><button type="button" onClick={()=>removeAttachment(a.id)}><X size={12}/></button>
+            </div>)}
+          </div>}
+          <textarea value={prompt} onPaste={onPaste} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息，可粘贴/拖拽图片…" rows={1}/>
           <div className="oa-composer-bar">
+            <button className="oa-attach-btn" type="button" onClick={()=>fileRef.current?.click()} title="添加图片"><ImagePlus size={17}/><span>图片</span></button>
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
               {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
-            <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
+            <button className="oa-send" disabled={busy || (!prompt.trim() && !attachments.length)} onClick={send}><Send size={17}/></button>
           </div>
         </div>
-        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制与模型切换</p>
+        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制、图片粘贴/拖拽与模型切换</p>
       </footer>
     </main>
   </div>
