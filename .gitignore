@@ -1,0 +1,6 @@
+dist/
+*.exe
+config.local.json
+model_profiles.json
+web/node_modules/
+web/dist/

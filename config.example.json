@@ -1,0 +1,7 @@
+{
+  "ga_root": "E:/Work/GenericAgent",
+  "host": "127.0.0.1",
+  "port": 8787,
+  "log_tail_lines": 200,
+  "buffer_lines": 1000
+}

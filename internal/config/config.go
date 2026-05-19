@@ -1,0 +1,81 @@
+package config
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+)
+
+type AppConfig struct {
+	GARoot       string `json:"ga_root"`
+	Host         string `json:"host"`
+	Port         int    `json:"port"`
+	LogTailLines int    `json:"log_tail_lines"`
+	BufferLines  int    `json:"buffer_lines"`
+}
+
+func Default() AppConfig {
+	return AppConfig{GARoot: "E:/Work/GenericAgent", Host: "127.0.0.1", Port: 8787, LogTailLines: 200, BufferLines: 1000}
+}
+
+type Store struct {
+	Root string
+	Cfg  AppConfig
+}
+
+func NewStore(root string) *Store {
+	s := &Store{Root: root, Cfg: Default()}
+	_ = s.Load()
+	return s
+}
+
+func (s *Store) path() string { return filepath.Join(s.Root, "config.local.json") }
+
+func (s *Store) Load() error {
+	data, err := os.ReadFile(s.path())
+	if err != nil {
+		return nil
+	}
+	cfg := Default()
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	if cfg.Host == "" {
+		cfg.Host = "127.0.0.1"
+	}
+	if cfg.Port == 0 {
+		cfg.Port = 8787
+	}
+	if cfg.LogTailLines == 0 {
+		cfg.LogTailLines = 200
+	}
+	if cfg.BufferLines == 0 {
+		cfg.BufferLines = 1000
+	}
+	s.Cfg = cfg
+	return nil
+}
+
+func (s *Store) Save(cfg AppConfig) error {
+	if cfg.Host == "" {
+		cfg.Host = "127.0.0.1"
+	}
+	if cfg.Port == 0 {
+		cfg.Port = 8787
+	}
+	if cfg.LogTailLines == 0 {
+		cfg.LogTailLines = 200
+	}
+	if cfg.BufferLines == 0 {
+		cfg.BufferLines = 1000
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(s.path(), data, 0644); err != nil {
+		return err
+	}
+	s.Cfg = cfg
+	return nil
+}
