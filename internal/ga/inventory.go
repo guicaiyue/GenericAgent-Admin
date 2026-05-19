@@ -33,15 +33,16 @@ type MemorySummary struct {
 	Raw     []Entry    `json:"raw_sessions"`
 }
 type Inventory struct {
-	Root      string           `json:"root"`
-	CoreFiles []FileStatus     `json:"core_files"`
-	Tools     []FileStatus     `json:"tools"`
-	Frontends []Entry          `json:"frontends"`
-	Reflect   []Entry          `json:"reflect"`
-	Plugins   []Entry          `json:"plugins"`
-	Memory    MemorySummary    `json:"memory"`
-	Schedule  ScheduleOverview `json:"schedule"`
-	Generated time.Time        `json:"generated_at"`
+	Root              string           `json:"root"`
+	CoreFiles         []FileStatus     `json:"core_files"`
+	Tools             []FileStatus     `json:"tools"`
+	Frontends         []Entry          `json:"frontends"`
+	Reflect           []Entry          `json:"reflect"`
+	Plugins           []Entry          `json:"plugins"`
+	Memory            MemorySummary    `json:"memory"`
+	Schedule          ScheduleOverview `json:"schedule"`
+	AutonomousReports []Entry          `json:"autonomous_reports"`
+	Generated         time.Time        `json:"generated_at"`
 }
 type ScheduleTask struct {
 	ID            string    `json:"id"`
@@ -91,6 +92,7 @@ func BuildInventory(root string) Inventory {
 	inv.Plugins = listDir(root, "plugins", func(name string, isDir bool) string { return "plugin" })
 	inv.Memory = buildMemory(root)
 	inv.Schedule = BuildSchedule(root)
+	inv.AutonomousReports = buildAutonomousReports(root)
 	return inv
 }
 
@@ -304,8 +306,12 @@ func ReadScheduleArtifact(root, rel string, maxBytes int64) (string, Entry, erro
 	if strings.HasPrefix(clean, "../") || clean == ".." || filepath.IsAbs(clean) {
 		return "", Entry{}, errors.New("invalid path")
 	}
-	if !(strings.HasPrefix(clean, "sche_tasks/done/") || clean == "sche_tasks/scheduler.log") {
-		return "", Entry{}, errors.New("only schedule reports and scheduler.log can be read here")
+	allowed := clean == "sche_tasks/scheduler.log" ||
+		strings.HasPrefix(clean, "sche_tasks/done/") ||
+		strings.HasPrefix(clean, "autonomous_reports/") ||
+		strings.HasPrefix(clean, "temp/autonomous_reports/")
+	if !allowed {
+		return "", Entry{}, errors.New("only schedule reports, autonomous reports and scheduler.log can be read here")
 	}
 	p := filepath.Join(root, filepath.FromSlash(clean))
 	info, err := os.Stat(p)
@@ -479,6 +485,22 @@ func listDir(root, rel string, domain func(string, bool) string) []Entry {
 	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
 	return out
 }
+func buildAutonomousReports(root string) []Entry {
+	out := []Entry{}
+	for _, rel := range []string{"autonomous_reports", filepath.ToSlash(filepath.Join("temp", "autonomous_reports"))} {
+		for _, e := range listDir(root, rel, func(string, bool) string { return "autonomous-report" }) {
+			if e.Kind == "file" {
+				out = append(out, e)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
+	if len(out) > 80 {
+		return out[:80]
+	}
+	return out
+}
+
 func classifyFrontend(name string, isDir bool) string {
 	n := strings.ToLower(name)
 	switch {
