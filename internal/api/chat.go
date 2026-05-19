@@ -81,6 +81,10 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 			s.chatGetSession(w, r, parts[1])
 			return
 		}
+		if len(parts) == 2 && r.Method == http.MethodPatch {
+			s.chatRenameSession(w, r, parts[1])
+			return
+		}
 		if len(parts) == 2 && r.Method == http.MethodDelete {
 			s.chatDeleteSession(w, r, parts[1])
 			return
@@ -125,6 +129,35 @@ func (s *Server) chatGetSession(w http.ResponseWriter, r *http.Request, sid stri
 	}
 	writeJSON(w, cs)
 }
+func (s *Server) chatRenameSession(w http.ResponseWriter, r *http.Request, sid string) {
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := decode(r, &req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		bad(w, 400, "title required")
+		return
+	}
+	if len([]rune(title)) > 80 {
+		title = string([]rune(title)[:80])
+	}
+	cs, err := loadChatSession(s.CfgStore.Cfg.GARoot, safeChatID(sid))
+	if err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	cs.Title = title
+	cs.UpdatedAt = time.Now().Unix()
+	if err := saveChatSession(s.CfgStore.Cfg.GARoot, cs); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, cs)
+}
 func (s *Server) chatDeleteSession(w http.ResponseWriter, r *http.Request, sid string) {
 	_ = os.Remove(chatSessionPath(s.CfgStore.Cfg.GARoot, safeChatID(sid)))
 	writeJSON(w, map[string]bool{"ok": true})
@@ -138,7 +171,24 @@ func (s *Server) chatSaveSettings(w http.ResponseWriter, r *http.Request, sid st
 	writeJSON(w, map[string]interface{}{"ok": true, "settings": st})
 }
 func (s *Server) chatState(w http.ResponseWriter, r *http.Request, sid string) {
-	writeJSON(w, map[string]interface{}{"settings": chatSettings{}, "llm_no": 0, "llms": []interface{}{}, "backend": map[string]string{"class": "GenericAgent worker"}})
+	cs, _ := loadChatSession(s.CfgStore.Cfg.GARoot, safeChatID(sid))
+	llms := []map[string]interface{}{}
+	if s.Models != nil {
+		if d, err := s.Models.Load(false); err == nil {
+			for i, p := range d.Profiles {
+				label := strings.TrimSpace(p.Name)
+				if label == "" {
+					label = p.VarName
+				}
+				model := strings.TrimSpace(p.Model)
+				if model != "" {
+					label += " · " + model
+				}
+				llms = append(llms, map[string]interface{}{"index": i + 1, "label": label, "name": p.Name, "var_name": p.VarName, "model": p.Model, "type": p.Type})
+			}
+		}
+	}
+	writeJSON(w, map[string]interface{}{"settings": cs.Settings, "llm_no": cs.Settings.LLMNo, "llms": llms, "backend": map[string]string{"class": "GenericAgent worker"}})
 }
 
 func (s *Server) chatPost(w http.ResponseWriter, r *http.Request, sid string) {

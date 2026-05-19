@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, ChevronLeft, Clock3, Menu, MessageSquarePlus, RefreshCw, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -11,8 +11,69 @@ const fmtTime = (v) => {
   if (!v) return ''
   try { return new Date(v * 1000).toLocaleString() } catch { return '' }
 }
-
 const shortTitle = (s) => s?.title || '新会话'
+const modelLabel = (m) => m?.label || [m?.name || m?.var_name || `模型 ${m?.index || ''}`, m?.model].filter(Boolean).join(' · ')
+
+const escapeHtml = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+const inlineMarkdown = (s = '') => escapeHtml(s)
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+
+function CopyButton({ text, compact = false }) {
+  const [ok, setOk] = useState(false)
+  const copy = async (e) => {
+    e?.stopPropagation?.()
+    try {
+      await navigator.clipboard.writeText(text || '')
+      setOk(true)
+      setTimeout(() => setOk(false), 1200)
+    } catch {}
+  }
+  return <button className={compact ? 'oa-mini-copy' : 'oa-copy'} onClick={copy} title="复制">
+    {ok ? <Check size={14}/> : <Copy size={14}/>}<span>{ok ? '已复制' : '复制'}</span>
+  </button>
+}
+
+function MarkdownBlock({ text = '' }) {
+  const parts = []
+  const re = /```([^\n`]*)\n?([\s\S]*?)```/g
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ type:'text', text:text.slice(last, m.index) })
+    parts.push({ type:'code', lang:(m[1] || '').trim(), text:m[2] || '' })
+    last = re.lastIndex
+  }
+  if (last < text.length) parts.push({ type:'text', text:text.slice(last) })
+  if (!parts.length) parts.push({ type:'text', text })
+  return <div className="oa-md">
+    {parts.map((p, idx) => p.type === 'code'
+      ? <div className="oa-code-card" key={idx}>
+          <div className="oa-code-head"><span>{p.lang || '代码'}</span><CopyButton text={p.text} compact /></div>
+          <pre><code>{p.text}</code></pre>
+        </div>
+      : <TextMarkdown key={idx} text={p.text}/>) }
+  </div>
+}
+
+function TextMarkdown({ text = '' }) {
+  const blocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
+  return <>{blocks.map((b, i) => {
+    const lines = b.split('\n')
+    if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
+      return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j} dangerouslySetInnerHTML={{__html:inlineMarkdown(x.replace(/^\s*([-*]|\d+\.)\s+/, ''))}} />)}</ul>
+    }
+    if (/^#{1,3}\s+/.test(b.trim())) {
+      const level = Math.min(3, b.trim().match(/^#+/)[0].length)
+      const body = b.trim().replace(/^#{1,3}\s+/, '')
+      const Tag = `h${level + 2}`
+      return <Tag key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(body)}} />
+    }
+    return <p key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(b)}} />
+  })}</>
+}
+
 const parseAssistantContent = (raw = '') => {
   let text = String(raw || '').replace(/\r\n/g, '\n')
   const runs = []
@@ -38,20 +99,19 @@ const parseAssistantContent = (raw = '') => {
 function AssistantContent({ content, pending }) {
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
   const parsed = parseAssistantContent(content)
-  if (!parsed.runs.length) return <div className="oa-content">{content || ''}</div>
-  return <div className="oa-content oa-agent-output">
+  return <div className={`oa-content ${parsed.runs.length ? 'oa-agent-output' : ''}`}>
     {parsed.runs.length > 0 && <details className="oa-run-card" open={pending}>
       <summary><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</summary>
       <div className="oa-run-list">{parsed.runs.map((r, i) => <span key={i}><b>Turn {r.turn}</b>{r.title && <em>{r.title}</em>}</span>)}</div>
     </details>}
-    {parsed.body && <div className="oa-answer-text">{parsed.body}</div>}
+    <MarkdownBlock text={parsed.body || content || ''} />
   </div>
 }
 
 const examples = [
   ['巡检系统', '概览当前 GenericAgent 状态'],
-  ['定位错误', '帮我检查最近的错误日志'],
-  ['规划进化', '规划下一步自主进化任务'],
+  ['定位错误', '帮我检查最近的错误日志，并给出可执行修复方案'],
+  ['规划进化', '规划下一步自主进化任务，拆成可验证里程碑'],
   ['审查模型', '总结当前模型配置风险'],
 ]
 
@@ -64,8 +124,32 @@ export default function ChatApp() {
   const [err, setErr] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState('')
+  const [llms, setLlms] = useState([])
+  const [llmNo, setLlmNo] = useState(0)
+  const [menuOpen, setMenuOpen] = useState('')
+  const [editing, setEditing] = useState('')
+  const [draftTitle, setDraftTitle] = useState('')
   const endRef = useRef(null)
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
+
+  const loadChatState = async (id) => {
+    if (!id) return
+    const st = await api(`/api/chat/state/${id}`)
+    setLlms(st.llms || [])
+    setLlmNo(st.llm_no || st.settings?.llm_no || 0)
+  }
+
+  const openSession = async (id, refreshList = true) => {
+    const d = await api(`/api/chat/session/${id}`)
+    setSid(d.id)
+    setMessages(d.messages || [])
+    setLlmNo(d.settings?.llm_no || 0)
+    setErr('')
+    setNotice('')
+    setMenuOpen('')
+    if (refreshList) setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
+    await loadChatState(d.id)
+  }
 
   const loadSessions = async (prefer = sid) => {
     const d = await api('/api/chat/sessions')
@@ -76,109 +160,100 @@ export default function ChatApp() {
     return list
   }
 
-  const openSession = async (id, refreshList = true) => {
-    const d = await api(`/api/chat/session/${id}`)
-    setSid(d.id)
-    setMessages(d.messages || [])
-    setErr('')
-    setNotice('')
-    if (refreshList) {
-      setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
-    }
-  }
-
   const newSession = async () => {
     const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-    setSid(d.id)
-    setMessages([])
-    setPrompt('')
-    setErr('')
-    setNotice('已创建新会话')
-    await loadSessions(d.id)
+    setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
+    setSid(d.id); setMessages([]); setPrompt(''); setErr(''); setNotice('已创建新对话'); setLlmNo(d.settings?.llm_no || 0)
+    await loadChatState(d.id)
   }
 
   const deleteSession = async (id) => {
-    if (!id || !confirm('删除这个会话？')) return
+    if (!id || !confirm('删除此会话？此操作不可恢复。')) return
     await api(`/api/chat/session/${id}`, { method:'DELETE' })
-    setNotice('会话已删除')
-    setSid('')
-    setMessages([])
-    await loadSessions('')
+    setSessions(xs => xs.filter(x => x.id !== id))
+    setMenuOpen('')
+    if (id === sid) { setSid(''); setMessages([]); setNotice('会话已删除') }
+    setTimeout(() => loadSessions('').catch(()=>{}), 0)
   }
 
-  useEffect(()=>{ loadSessions('').catch(e=>setErr(e.message)) }, [])
-  useEffect(()=>{ endRef.current?.scrollIntoView({ behavior:'smooth', block:'end' }) }, [messages, busy])
+  const startRename = (s) => { setEditing(s.id); setDraftTitle(shortTitle(s)); setMenuOpen('') }
+  const saveRename = async (id) => {
+    const title = draftTitle.trim()
+    if (!title) return
+    const d = await api(`/api/chat/session/${id}`, { method:'PATCH', body: JSON.stringify({ title }) })
+    setSessions(xs => xs.map(x => x.id === id ? { ...x, title:d.title, updated_at:d.updated_at } : x))
+    setEditing(''); setDraftTitle(''); setNotice('会话已更名')
+  }
+
+  const saveModel = async (next) => {
+    setLlmNo(next)
+    if (!sid) return
+    await api(`/api/chat/settings/${sid}`, { method:'POST', body: JSON.stringify({ llm_no: next }) })
+    setNotice('模型已切换')
+  }
 
   const send = async () => {
     const text = prompt.trim()
     if (!text || busy) return
-    setBusy(true)
-    setErr('')
-    setNotice('')
-    setPrompt('')
-    let useSid = sid
-    let optimistic = [...messages]
-    if (!useSid) {
-      const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-      useSid = d.id
-      setSid(useSid)
-      await loadSessions(useSid)
-      optimistic = []
-    }
-    const now = Math.floor(Date.now()/1000)
-    const user = { id:`u-${Date.now()}`, role:'user', content:text, created_at:now }
-    const assistant = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:now }
-    setMessages([...optimistic, user, assistant])
+    setBusy(true); setErr(''); setNotice('')
+    let id = sid
     try {
-      const res = await fetch(`/api/chat/${useSid}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text, client_user_id:user.id }) })
-      if (!res.ok || !res.body) throw new Error(await res.text())
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let buf = ''
+      if (!id) {
+        const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
+        id = d.id; setSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
+      }
+      const clientUserID = `u-${Date.now()}`
+      setPrompt('')
+      const optimistic = { id:clientUserID, role:'user', content:text, created_at:Math.floor(Date.now()/1000) }
+      const pending = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }
+      setMessages(xs => [...xs, optimistic, pending])
+      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text, settings:{ llm_no: llmNo }, client_user_id:clientUserID }) })
+      if (!res.ok) throw new Error(await res.text())
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
-        const { done, value } = await reader.read()
+        const { value, done } = await reader.read()
         if (done) break
         buf += dec.decode(value, { stream:true })
-        const parts = buf.split('\n\n')
-        buf = parts.pop() || ''
-        for (const part of parts) {
-          const line = part.split('\n').find(x=>x.startsWith('data:'))
-          if (!line) continue
-          const raw = line.slice(5).trim()
-          if (!raw) continue
-          const ev = JSON.parse(raw)
-          if (ev.type === 'message' && ev.message) {
-            setMessages(ms => ms.map(m => m.id === assistant.id ? ev.message : m))
-          }
-          if ((ev.type === 'done' || ev.type === 'error') && ev.message) {
-            setMessages(ms => ms.map(m => m.id === assistant.id ? ev.message : m))
-          }
-          if (ev.type === 'error') setErr(ev.error || 'Worker error')
+        const lines = buf.split('\n'); buf = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const ev = JSON.parse(line)
+          if (ev.type === 'user') setMessages(xs => xs.map(m => m.id === clientUserID ? ev.message : m))
+          if (ev.message && (ev.type === 'done' || ev.type === 'error')) setMessages(xs => xs.map(m => m.id === pending.id ? ev.message : m))
         }
       }
-      await loadSessions(useSid)
+      await loadSessions(id)
     } catch (e) {
-      setErr(e.message)
-      setMessages(ms => ms.map(m => m.id === assistant.id ? {...m, content:e.message, error:true} : m))
-    } finally {
-      setBusy(false)
-    }
+      setErr(e.message || String(e))
+    } finally { setBusy(false) }
   }
 
-  return <div className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
-    <aside className="oa-sidebar">
-      <div className="oa-brand-row">
-        <div className="oa-brand-mark"><Sparkles size={17}/></div>
-        <div><b>GenericAgent</b><span>Command Chat</span></div>
-        <button className="oa-icon-btn" onClick={()=>setCollapsed(true)} title="收起侧栏"><Menu size={18}/></button>
+  useEffect(() => { loadSessions().catch(e=>setErr(e.message)) }, [])
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth', block:'end' }) }, [messages, busy])
+
+  const activeModel = llms.find(x => x.index === llmNo) || llms[0]
+
+  return <div className="oa-chat">
+    <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <div className="oa-side-head">
+        <div className="oa-logo"><Bot size={18}/><span>GenericAgent</span></div>
+        <button className="oa-icon-btn" onClick={()=>setCollapsed(true)} title="折叠"><Menu size={18}/></button>
       </div>
-      <button className="oa-new-chat" onClick={newSession}><MessageSquarePlus size={16}/><span>开启新对话</span></button>
-      <div className="oa-section-label">最近会话</div>
+      <button className="oa-new-chat" onClick={newSession}><MessageSquarePlus size={16}/><span>新对话</span></button>
       <div className="oa-session-list">
-        {sessions.map(s => <button key={s.id} className={`oa-session ${s.id===sid?'active':''}`} onClick={()=>openSession(s.id)}>
-          <span>{shortTitle(s)}</span>
-          <small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条</small>
-        </button>)}
+        {sessions.map(s => <div key={s.id} className={`oa-session-row ${s.id===sid?'active':''}`}>
+          {editing === s.id ? <div className="oa-rename">
+            <input value={draftTitle} autoFocus onChange={e=>setDraftTitle(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') saveRename(s.id); if(e.key==='Escape') setEditing('') }}/>
+            <button onClick={()=>saveRename(s.id)}><Check size={14}/></button><button onClick={()=>setEditing('')}><X size={14}/></button>
+          </div> : <button className="oa-session" onClick={()=>openSession(s.id)}>
+            <span>{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条</small>
+          </button>}
+          {editing !== s.id && <button className="oa-session-more" onClick={(e)=>{e.stopPropagation(); setMenuOpen(menuOpen === s.id ? '' : s.id)}}><MoreHorizontal size={16}/></button>}
+          {menuOpen === s.id && <div className="oa-session-menu">
+            <button onClick={()=>startRename(s)}><Edit3 size={14}/>重命名</button>
+            <button className="danger" onClick={()=>deleteSession(s.id)}><Trash2 size={14}/>删除</button>
+          </div>}
+        </div>)}
         {!sessions.length && <div className="oa-empty-list">暂无历史会话</div>}
       </div>
       <div className="oa-sidebar-foot">
@@ -190,8 +265,11 @@ export default function ChatApp() {
     <main className="oa-main">
       <header className="oa-topbar">
         {collapsed && <button className="oa-icon-btn" onClick={()=>setCollapsed(false)} title="展开侧栏"><Menu size={18}/></button>}
-        <div className="oa-title"><b>{current ? shortTitle(current) : '新对话'}</b><span>OpenAI-style workspace for local agent operations</span></div>
+        <div className="oa-title"><b>{current ? shortTitle(current) : '新对话'}</b><span>ChatGPT-style workspace for GenericAgent</span></div>
         <div className="oa-top-actions">
+          <label className="oa-model-select"><span>{activeModel ? '模型' : '默认模型'}</span><select value={llmNo} onChange={e=>saveModel(Number(e.target.value))}>
+            <option value={0}>自动 / 默认</option>{llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>)}
+          </select><ChevronDown size={14}/></label>
           <button onClick={newSession}>新对话</button>
           <button disabled={!sid} onClick={()=>deleteSession(sid)}><Trash2 size={15}/>删除</button>
         </div>
@@ -203,14 +281,14 @@ export default function ChatApp() {
         {messages.length === 0 && <div className="oa-empty">
           <div className="oa-hero-badge"><Sparkles size={16}/>Agent cockpit</div>
           <h1>今天想让 GenericAgent 做什么？</h1>
-          <p>像 ChatGPT 一样对话，但面向本地生命周期管理、排错、模型配置和自主进化。</p>
-          <div className="oa-prompts">{examples.map(([k, x]) => <button key={x} onClick={()=>setPrompt(x)}><b>{k}</b><span>{x}</span></button>)}</div>
+          <p>支持 Markdown、代码块复制、模型切换、会话重命名与删除。</p>
+          <div className="oa-prompts">{examples.map(([k, x]) => <button className="oa-prompt" key={x} onClick={()=>setPrompt(x)}><b>{k}</b><span>{x}</span></button>)}</div>
         </div>}
         {messages.map(m => <article key={m.id} className={`oa-message ${m.role} ${m.error?'error':''}`}>
           <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
           <div className="oa-bubble">
-            <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}</div>
-            <AssistantContent content={m.content} pending={busy && m.role === 'assistant' && !m.content} />
+            <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
+            {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} /> : <MarkdownBlock text={m.content} />}
           </div>
         </article>)}
         <div ref={endRef}/>
@@ -218,10 +296,10 @@ export default function ChatApp() {
 
       <footer className="oa-composer-wrap">
         <div className="oa-composer">
-          <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)) send() }} placeholder="向 GenericAgent 发送消息…" rows={1}/>
+          <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息…" rows={1}/>
           <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
         </div>
-        <p>Ctrl / ⌘ + Enter 发送 · 本地执行前请确认意图清晰</p>
+        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown 与代码块复制</p>
       </footer>
     </main>
   </div>
