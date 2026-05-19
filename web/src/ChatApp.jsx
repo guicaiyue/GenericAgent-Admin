@@ -57,9 +57,28 @@ function MarkdownBlock({ text = '' }) {
   </div>
 }
 
+const parseToolCallBlock = (block = '') => {
+  const text = String(block || '').trim()
+  const compact = text.match(/^🛠️\s*Tool:\s*([^\n📥]+?)\s*(?:📥\s*args:\s*([\s\S]*))?$/i)
+  if (compact) return { name: compact[1].trim(), args: (compact[2] || '').trim() }
+  const tool = text.match(/^🛠️\s*Tool:\s*(.+)$/im)
+  if (!tool) return null
+  const argMatch = text.match(/📥\s*args:\s*([\s\S]*)$/i)
+  return { name: tool[1].trim(), args: (argMatch?.[1] || '').trim() }
+}
+
+function ToolCallBlock({ call }) {
+  return <div className="oa-tool-call">
+    <div className="oa-tool-head"><span className="oa-tool-icon">🛠️</span><span>Tool</span><b>{call.name || 'unknown'}</b></div>
+    {call.args && <div className="oa-tool-args"><span>📥 args</span><pre>{call.args}</pre></div>}
+  </div>
+}
+
 function TextMarkdown({ text = '' }) {
   const blocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
   return <>{blocks.map((b, i) => {
+    const toolCall = parseToolCallBlock(b)
+    if (toolCall) return <ToolCallBlock key={i} call={toolCall} />
     const lines = b.split('\n')
     if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
       return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j} dangerouslySetInnerHTML={{__html:inlineMarkdown(x.replace(/^\s*([-*]|\d+\.)\s+/, ''))}} />)}</ul>
