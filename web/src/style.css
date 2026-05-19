@@ -671,7 +671,7 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-new-chat:hover,.oa-session:hover,.oa-session-row.active .oa-session{background:#ececec!important;transform:none}
 .oa-session-list{gap:2px;padding-right:0}
 .oa-session-row{position:relative;border-radius:10px}
-.oa-session{min-height:46px;border:0!important;border-radius:10px;background:transparent;color:#333;box-shadow:none!important;font-weight:400;padding:8px 34px 8px 10px}
+.oa-session{min-height:46px;border:0!important;border-radius:10px;background:transparent;color:#333;box-shadow:none!important;font-weight:400;padding:8px 34px 8px 10px;text-align:left;align-items:flex-start;justify-content:center;width:100%;display:flex;flex-direction:column}
 .oa-session span{font-size:14px;font-weight:400;color:#222}
 .oa-session small{color:#8a8a8a;font-size:11.5px;display:flex;align-items:center;gap:4px}
 .oa-session-more{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#666;display:none;align-items:center;justify-content:center;cursor:pointer}
