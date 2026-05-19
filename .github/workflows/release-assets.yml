@@ -1,0 +1,107 @@
+name: Build and upload release assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and upload assets for
+        required: true
+        default: v0.0.5
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+          - goos: windows
+            goarch: arm64
+            runner: windows-latest
+          - goos: darwin
+            goarch: amd64
+            runner: macos-13
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web
+        shell: bash
+        run: |
+          cd web
+          npm ci || npm install
+          npm run build
+
+      - name: Build binary
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          mkdir -p dist/cmd
+          cp cmd/chat_worker.py dist/cmd/chat_worker.py
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -ldflags="-s -w -H=windowsgui" -o dist/ga-admin.exe .
+          else
+            go build -ldflags="-s -w" -o dist/ga-admin .
+          fi
+
+      - name: Package
+        shell: bash
+        run: |
+          tag='${{ inputs.tag }}'
+          version="${tag#v}"
+          name="ga-admin-${tag}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p package "$name"
+          cp -R dist/* "$name"/
+          cat > "$name/README.txt" <<EOF
+          GenericAgent Admin Go ${tag}
+
+          Run ga-admin.exe on Windows, or ga-admin on macOS.
+          The executable embeds the React/Vite web UI.
+          GenericAgent services still require your local GenericAgent Python environment.
+          EOF
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path '$name/*' -DestinationPath 'package/$name.zip' -Force"
+          else
+            zip -r "package/$name.zip" "$name"
+          fi
+          cd package
+          shasum -a 256 "$name.zip" > "$name.zip.sha256"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: |
+            package/*.zip
+            package/*.sha256
+          fail_on_unmatched_files: true
+          overwrite_files: true
