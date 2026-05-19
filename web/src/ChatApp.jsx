@@ -106,15 +106,29 @@ const parseAssistantContent = (raw = '') => {
 }
 
 function AssistantContent({ content, pending }) {
+  const [openTurns, setOpenTurns] = useState({})
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
   const parsed = parseAssistantContent(content)
+  const boxedRuns = parsed.runs.slice(0, -1)
+  const lastRun = parsed.runs[parsed.runs.length - 1]
+  const isTurnOpen = (r, i) => openTurns[`${r.turn}-${i}`] !== false
+  const toggleTurn = (r, i) => setOpenTurns(xs => ({ ...xs, [`${r.turn}-${i}`]: !isTurnOpen(r, i) }))
   return <div className={`oa-content ${parsed.runs.length ? 'oa-agent-output' : ''}`}>
     {parsed.runs.length > 0 && <div className="oa-turn-stack">
       <div className="oa-turn-stack-head"><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</div>
-      {parsed.runs.map((r, i) => <section className="oa-turn-card" key={`${r.turn}-${i}`}>
-        <header><span>Turn {r.turn}</span><b>{r.title}</b></header>
-        {r.body ? <MarkdownBlock text={r.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>}
-      </section>)}
+      {boxedRuns.map((r, i) => {
+        const open = isTurnOpen(r, i)
+        return <section className={`oa-turn-card ${open ? 'open' : 'collapsed'}`} key={`${r.turn}-${i}`}>
+          <button className="oa-turn-toggle" type="button" onClick={() => toggleTurn(r, i)} aria-expanded={open}>
+            <span className="oa-turn-pill">Turn {r.turn}</span><b>{r.title}</b><ChevronDown size={15}/>
+          </button>
+          {open && (r.body ? <MarkdownBlock text={r.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>)}
+        </section>
+      })}
+      {lastRun && <section className="oa-turn-current" key={`last-${lastRun.turn}`}>
+        <div className="oa-turn-current-head"><span>Turn {lastRun.turn}</span><b>{lastRun.title}</b></div>
+        {lastRun.body ? <MarkdownBlock text={lastRun.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>}
+      </section>}
     </div>}
     {(parsed.body || !parsed.runs.length) && <div className={parsed.runs.length ? 'oa-final-answer' : ''}>
       {parsed.runs.length && <div className="oa-final-label">返回给用户</div>}
