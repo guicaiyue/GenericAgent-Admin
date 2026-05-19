@@ -692,11 +692,12 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-sidebar-foot button{min-height:36px;border:0;border-radius:10px;background:transparent;color:#555;justify-content:flex-start;padding:0 10px;box-shadow:none}
 .oa-root { background:#fff; border:1px solid #e8e8e8; border-radius:10px; }
 .oa-main{background:#fff;grid-template-rows:56px minmax(0,1fr) auto;transition:margin .24s cubic-bezier(.4,0,.2,1)}
-.oa-topbar{height:56px;padding:0 16px;border-bottom:0;background:#fff;box-shadow:none;display:flex;align-items:center;gap:10px}
-.oa-collapsed-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-right:2px}
+.oa-topbar{height:56px;padding:0 16px;border-bottom:0;background:#fff;box-shadow:none;display:flex;align-items:center;gap:10px;position:relative}
+.oa-collapsed-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-right:2px;z-index:2}
 .oa-collapsed-actions .oa-icon-btn{margin-left:0;color:#4f4f4f;background:transparent;box-shadow:none!important}
 .oa-collapsed-actions .oa-icon-btn:hover{background:#ececec}
 .oa-chat:not(.is-collapsed) .oa-collapsed-actions{display:none}
+.oa-chat.is-collapsed .oa-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(520px,calc(100% - 220px));text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .oa-title b{font-size:18px;font-weight:600;letter-spacing:-.02em;color:#111}
 .oa-title span{display:none}
 .oa-model { font-size:18px; font-weight:600; letter-spacing:0; border-radius:10px; padding:6px 10px; }
