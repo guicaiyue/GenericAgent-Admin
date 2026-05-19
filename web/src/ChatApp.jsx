@@ -36,7 +36,7 @@ function CopyButton({ text, compact = false }) {
   </button>
 }
 
-function MarkdownBlock({ text = '' }) {
+const splitMarkdownParts = (text = '') => {
   const parts = []
   const re = /```([^\n`]*)\n?([\s\S]*?)```/g
   let last = 0, m
@@ -47,21 +47,71 @@ function MarkdownBlock({ text = '' }) {
   }
   if (last < text.length) parts.push({ type:'text', text:text.slice(last) })
   if (!parts.length) parts.push({ type:'text', text })
+  return parts
+}
+
+const normalizeToolParts = (parts = []) => {
+  const out = []
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
+    if (p.type !== 'text') { out.push(p); continue }
+    const tool = parseToolCallBlock(p.text)
+    if (!tool) { out.push(p); continue }
+
+    let j = i + 1
+    while (j < parts.length) {
+      const next = parts[j]
+      if (next.type === 'text') {
+        const args = parseToolArgsBlock(next.text)
+        const trimmed = String(next.text || '').trim()
+        if (args !== null) {
+          tool.args = [tool.args, args].filter(Boolean).join('\n\n')
+          j += 1
+          continue
+        }
+        if (!trimmed) { j += 1; continue }
+      }
+      if (next.type === 'code') {
+        if (!tool.args || /📥\s*args:\s*$/i.test(String(p.text || '').trim())) {
+          tool.args = [tool.args, next.text].filter(Boolean).join('\n\n')
+          j += 1
+          continue
+        }
+      }
+      break
+    }
+    out.push({ type:'tool', call:tool })
+    i = j - 1
+  }
+  return out
+}
+
+function MarkdownBlock({ text = '' }) {
+  const parts = normalizeToolParts(splitMarkdownParts(text))
   return <div className="oa-md">
     {parts.map((p, idx) => p.type === 'code'
       ? <div className="oa-code-card" key={idx}>
           <div className="oa-code-head"><span>{p.lang || '代码'}</span><CopyButton text={p.text} compact /></div>
           <pre><code>{p.text}</code></pre>
         </div>
-      : <TextMarkdown key={idx} text={p.text}/>) }
+      : p.type === 'tool'
+        ? <ToolCallBlock key={idx} call={p.call} />
+        : <TextMarkdown key={idx} text={p.text}/>) }
   </div>
 }
 
 const parseToolCallBlock = (block = '') => {
   const text = String(block || '').trim()
-  const compact = text.match(/^🛠️\s*Tool:\s*([\s\S]*?)(?:\s*📥\s*args:\s*([\s\S]*))?$/i)
-  if (!compact) return null
-  return { name: (compact[1] || '').trim(), args: (compact[2] || '').trim() }
+  const tool = text.match(/^🛠️\s*Tool:\s*([\s\S]*)$/i)
+  if (!tool) return null
+  const rest = (tool[1] || '').trim()
+  const argsMarker = rest.match(/📥\s*args\s*:/i)
+  if (!argsMarker) return { name: rest.trim(), args: '' }
+  const markerIndex = argsMarker.index || 0
+  return {
+    name: rest.slice(0, markerIndex).trim(),
+    args: rest.slice(markerIndex + argsMarker[0].length).trim(),
+  }
 }
 
 const parseToolArgsBlock = (block = '') => {
