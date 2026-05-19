@@ -44,6 +44,8 @@ type chatRun struct {
 	SID         string
 	Events      [][]byte
 	Done        bool
+	Canceled    bool
+	Cmd         *exec.Cmd
 	Subscribers map[chan []byte]bool
 }
 
@@ -110,6 +112,11 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 	case "stream":
 		if len(parts) == 2 && r.Method == http.MethodGet {
 			s.chatStream(w, r, parts[1])
+			return
+		}
+	case "cancel":
+		if len(parts) == 2 && r.Method == http.MethodPost {
+			s.chatCancel(w, r, parts[1])
 			return
 		}
 	case "file":
@@ -252,6 +259,7 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		s.endChatRun(sid)
 		return
 	}
+	s.setChatRunCmd(sid, cmd)
 	go io.Copy(io.Discard, stderr)
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
@@ -271,9 +279,16 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		}
 		s.publishChatLine(sid, line)
 	}
-	_ = cmd.Wait()
-	if final.ID == "" {
-		final = chatMessage{ID: newChatID(), Role: "assistant", Content: "", CreatedAt: time.Now().Unix()}
+	waitErr := cmd.Wait()
+	if s.chatRunCanceled(sid) {
+		final = chatMessage{ID: newChatID(), Role: "assistant", Content: "\u5df2\u505c\u6b62\u751f\u6210", CreatedAt: time.Now().Unix(), Error: true}
+		s.publishChatRun(sid, map[string]interface{}{"type": "error", "message": final})
+	} else if final.ID == "" {
+		content := ""
+		if waitErr != nil {
+			content = fmt.Sprintf("\u751f\u6210\u5931\u8d25\uff1a%v", waitErr)
+		}
+		final = chatMessage{ID: newChatID(), Role: "assistant", Content: content, CreatedAt: time.Now().Unix(), Error: waitErr != nil}
 	}
 	cs.Messages = append(cs.Messages, final)
 	cs.UpdatedAt = time.Now().Unix()
@@ -307,6 +322,40 @@ func (s *Server) beginChatRun(sid string) bool {
 	}
 	s.ChatRuns[sid] = &chatRun{SID: sid, Subscribers: map[chan []byte]bool{}}
 	return true
+}
+
+func (s *Server) setChatRunCmd(sid string, cmd *exec.Cmd) {
+	s.ChatMu.Lock()
+	if r := s.ChatRuns[safeChatID(sid)]; r != nil {
+		r.Cmd = cmd
+	}
+	s.ChatMu.Unlock()
+}
+
+func (s *Server) chatRunCanceled(sid string) bool {
+	s.ChatMu.Lock()
+	defer s.ChatMu.Unlock()
+	r := s.ChatRuns[safeChatID(sid)]
+	return r != nil && r.Canceled
+}
+
+func (s *Server) chatCancel(w http.ResponseWriter, r *http.Request, sid string) {
+	sid = safeChatID(sid)
+	var cmd *exec.Cmd
+	s.ChatMu.Lock()
+	run := s.ChatRuns[sid]
+	if run == nil || run.Done {
+		s.ChatMu.Unlock()
+		writeJSON(w, map[string]interface{}{"ok": true, "running": false})
+		return
+	}
+	run.Canceled = true
+	cmd = run.Cmd
+	s.ChatMu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "running": false})
 }
 
 func (s *Server) publishChatRun(sid string, ev map[string]interface{}) {

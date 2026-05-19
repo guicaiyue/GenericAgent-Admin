@@ -1326,3 +1326,7 @@ pre, code { background:#f7f7f7; color:#111; }
   text-overflow:ellipsis !important;
   white-space:nowrap !important;
 }
+
+.oa-stop { width:36px; height:36px; border-radius:999px; border:0; background:#0d0d0d; color:#fff; display:grid; place-items:center; cursor:pointer; }
+.oa-stop:hover { background:#2f2f2f; }
+.oa-stop svg { fill:currentColor; stroke-width:0; }

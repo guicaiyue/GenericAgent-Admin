@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -393,6 +393,18 @@ export default function ChatApp() {
     }
   }
 
+  const cancelRun = async (id = sid) => {
+    if (!id || !busy) return
+    try {
+      streamAbortRef.current?.abort?.()
+      await api(`/api/chat/cancel/${id}`, { method:'POST', body:'{}' })
+      setMessages(xs => xs.map(m => (m.role === 'assistant' && !m.content) ? { ...m, content:'已中止。', error:true } : m))
+      setSessions(xs => xs.map(s => s.id === id ? { ...s, running:false } : s))
+      setNotice('已中止当前执行')
+    } catch (e) { setErr(e.message || String(e)) }
+    finally { setBusy(false); if (id) loadSessions(id).catch(()=>{}) }
+  }
+
   const attachRunningStream = async (id) => {
     if (!id) return
     streamAbortRef.current?.abort?.()
@@ -646,7 +658,7 @@ export default function ChatApp() {
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
               {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
-            <button className="oa-send" disabled={busy || (!prompt.trim() && !attachments.length)} onClick={send}><Send size={17}/></button>
+            {busy ? <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="\u505c\u6b62\u751f\u6210"><Square size={14}/></button> : <button className="oa-send" disabled={!prompt.trim() && !attachments.length} onClick={send}><Send size={17}/></button>}
           </div>
         </div>
         <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制、图片粘贴/拖拽与模型切换</p>
