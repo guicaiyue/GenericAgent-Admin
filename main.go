@@ -40,6 +40,7 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", cfgStore.Cfg.Host, cfgStore.Cfg.Port)
 	url := "http://" + addr
 	server := &http.Server{Addr: addr, Handler: srv.Routes()}
+	go srv.StartAutostartServices()
 	go func() { time.Sleep(500 * time.Millisecond); openBrowser(url) }()
 	go func() {
 		log.Printf("GenericAgent Admin Go listening on %s", url)

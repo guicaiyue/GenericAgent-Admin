@@ -7,11 +7,12 @@ import (
 )
 
 type AppConfig struct {
-	GARoot       string `json:"ga_root"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	LogTailLines int    `json:"log_tail_lines"`
-	BufferLines  int    `json:"buffer_lines"`
+	GARoot           string   `json:"ga_root"`
+	Host             string   `json:"host"`
+	Port             int      `json:"port"`
+	LogTailLines     int      `json:"log_tail_lines"`
+	BufferLines      int      `json:"buffer_lines"`
+	ServiceAutostart []string `json:"service_autostart"`
 }
 
 func Default() AppConfig {

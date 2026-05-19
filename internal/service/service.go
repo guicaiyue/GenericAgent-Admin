@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type ServiceInfo struct {
@@ -21,6 +22,7 @@ type ServiceInfo struct {
 	Running    bool     `json:"running"`
 	PID        *int     `json:"pid"`
 	ReturnCode *int     `json:"returncode"`
+	Autostart  bool     `json:"autostart,omitempty"`
 }
 
 type runningProc struct {
@@ -181,6 +183,17 @@ func (m *Manager) Start(name string) (ServiceInfo, error) {
 	}
 	m.buffers[name] = []string{fmt.Sprintf("$ %s", strings.Join(s.Command, " "))}
 	m.mu.Unlock()
+	if killed, err := m.stopConflictingService(s); err != nil {
+		return s, err
+	} else if len(killed) > 0 {
+		m.mu.Lock()
+		for _, pid := range killed {
+			m.appendLocked(name, fmt.Sprintf("[force restart] stopped existing instance pid=%d", pid))
+		}
+		m.mu.Unlock()
+		// Give singleton locks/ports a short moment to be released before starting the managed instance.
+		time.Sleep(500 * time.Millisecond)
+	}
 	cmd := exec.Command(s.Command[0], s.Command[1:]...)
 	cmd.Dir = m.GARoot
 	hideChildWindow(cmd)

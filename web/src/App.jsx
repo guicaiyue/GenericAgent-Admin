@@ -10,13 +10,26 @@ const api = async (url, options = {}) => {
   return body
 }
 
+const NAV_ITEMS = ['overview','chat','control','files','tasks','memory','channels','autonomous','models','logs']
+const ROUTE_TABS = NAV_ITEMS.filter(n => n !== 'chat')
+const TASK_SUB_TABS = ['services','scheduled','reports']
+
+const parseRoute = () => {
+  const parts = (window.location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean)
+  const tab = ROUTE_TABS.includes(parts[0]) ? parts[0] : 'overview'
+  const taskSubTab = tab === 'tasks' && TASK_SUB_TABS.includes(parts[1]) ? parts[1] : 'services'
+  return { tab, taskSubTab }
+}
+
+const buildRoute = (tab, taskSubTab = 'services') => tab === 'tasks' ? `#/${tab}/${taskSubTab}` : `#/${tab}`
+
 const I18N = {
   zh: {
     appName: 'GA Admin', tagline: 'GenericAgent 生命周期控制面', root: 'GenericAgent 根目录', setupTitle: '首次配置 GenericAgent', setupDesc: '请选择已有 GA 根目录，或一键安装到新目录。', validateRoot: '验证并使用', installGA: '安装 GA', installPath: '安装目录', setupOk: 'GA 路径已配置', installDone: 'GA 已安装并配置', browse: '选择目录', checkEnv: '检查 Python / Git', envReady: '环境已就绪', envMissing: '环境缺失', save: '保存', refresh: '刷新', busy: '执行中', ready: '就绪', error: '错误', empty: '暂无', enabled: '启用', disabled: '停用', start: '启动', stop: '停止', running: '运行中', stopped: '已停止', language: '语言', show: '显示', hide: '隐藏', search: '搜索', read: '读取', create: '创建', remove: '删除', backup: '写操作会自动备份', autostart: '开机自启', enableAutostart: '开启自启', disableAutostart: '关闭自启', unsupported: '不支持',
     nav: { overview: '总览', chat: '对话', control: '控制面', files: '文件', tasks: '任务', memory: '记忆', channels: '通道', autonomous: '自主进化', schedule: '定时', models: '模型', logs: '日志' },
-    desc: { overview: '从 GA 的功能域理解并接管生命周期。', chat: '迁移自 reactapp 的 GA 原生对话、文件上传和流式聊天界面。', control: '运行前检查、能力地图、风险摘要与最近报告。', files: '安全浏览 GA 根目录内文本文件，支持 tail 与搜索。', tasks: '普通会话、任务文件、批处理入口与任务型服务。', memory: '分层记忆、SOP 与工具能力索引。', channels: '桌面、TUI、Web、IM Bot 等前端入口。', autonomous: '反思、自主运行、Goal Mode 与团队 Worker。', schedule: 'sche_tasks JSON 定时任务详情、编辑、创建与删除。', models: '读取/预览/写回 GA mykey.py 模型配置。', logs: '进程状态与输出日志。' },
-    cards: { processes: '进程', running: '运行中', stopped: '已停止', memoryLayers: '记忆层', sopTools: 'SOP/工具', schedule: '定时任务', enabledTasks: '已启用', reports: '报告', coreFiles: '核心文件', channels: '通道文件', reflect: '反思脚本', health: 'GA 健康', capabilities: '能力', risks: '风险' },
-    lists: { serviceGroups: '服务域', coreFiles: '核心文件', reflect: 'Reflect / Autonomous', frontends: '前端 / 通道', memory: '记忆层级', sop: 'SOP 与工具', taskServices: '任务服务', frontendServices: '前端服务', reflectServices: '反思服务', discoveredChannels: '发现的通道文件', reflectScripts: '反思脚本', scheduledTasks: '定时任务', recentReports: '最近报告', processes: '进程', generatedPreview: '生成预览', riskHints: '接管提示', autostart: '开机自启', capabilities: '能力地图', readiness: '运行前检查', fileList: '文件列表', filePreview: '文件预览', searchResults: '搜索结果', editor: '编辑器' },
+    desc: { overview: '从 GA 的功能域理解并接管生命周期。', chat: '迁移自 reactapp 的 GA 原生对话、文件上传和流式聊天界面。', control: '运行前检查、能力地图、风险摘要与最近报告。', files: '安全浏览 GA 根目录内文本文件，支持 tail 与搜索。', tasks: '普通会话、任务文件、批处理入口、任务型服务与 sche_tasks 定时任务。', memory: '分层记忆、SOP 与工具能力索引。', channels: '桌面、TUI、Web、IM Bot 等前端入口。', autonomous: '反思、自主运行、Goal Mode 与团队 Worker。', schedule: 'sche_tasks JSON 定时任务详情、编辑、创建与删除。', models: '读取/预览/写回 GA mykey.py 模型配置。', logs: '进程状态与输出日志。' },
+    cards: { processes: '进程', running: '运行中', stopped: '已停止', memoryLayers: '记忆层', sopTools: 'SOP/工具', schedule: '定时任务', enabledTasks: '已启用', reports: '报告', coreFiles: '核心文件', reflect: '反思脚本', health: 'GA 健康', capabilities: '能力', risks: '风险' },
+    lists: { serviceGroups: '服务域', coreFiles: '核心文件', reflect: 'Reflect / Autonomous', frontends: '前端 / 通道', memory: '记忆层级', sop: 'SOP 与工具', taskServices: '任务服务', frontendServices: '前端服务', reflectServices: '反思服务', reflectScripts: '反思脚本', scheduledTasks: '定时任务', recentReports: '最近报告', processes: '进程', generatedPreview: '生成预览', riskHints: '接管提示', autostart: '开机自启', capabilities: '能力地图', readiness: '运行前检查', fileList: '文件列表', filePreview: '文件预览', searchResults: '搜索结果', editor: '编辑器' },
     hints: { rootSaved: 'GA 根目录已保存', taskSaved: '任务已保存并备份旧文件', taskDeleted: '任务已删除并备份', taskToggled: '任务状态已更新', modelsSaved: 'mykey.py 已备份并写回', savedSecret: '已保存；输入新值可替换', secret: 'API Key / Token', noFrontend: '未发现前端服务', noReflect: '未发现 reflect 服务', noTasks: '暂无 sche_tasks/*.json', noLogs: '暂无日志', previewHelp: '点击“预览”查看配置；点击“写回 mykey.py”会先备份再覆盖 GA 的 mykey.py。', modelSource: '来源', secretHidden: '已隐藏真实密钥', addProfile: '新增 Profile', preview: '预览', writeMykey: '写回 mykey.py', filePath: '相对路径', searchText: '搜索文本', tailLines: '尾部行数', newTaskId: 'new_task', jsonHelp: 'JSON 需为对象；保存/删除会生成 .bak 时间戳。', autostartEnabled: '已开启：用户登录后自动启动 GA Admin。', autostartDisabled: '未开启：需要手动启动 GA Admin。', autostartUnsupported: '当前平台暂不支持自动注册。', autostartChanged: '开机自启状态已更新' },
     fields: { varName: '变量名', type: '类型', name: '名称', model: '模型', apiBase: 'API Base', apiKey: 'API Key', stream: '流式', maxRetries: '重试', readTimeout: '超时', reasoningEffort: '推理强度', editor: 'JSON 内容' }
   },
@@ -24,8 +37,8 @@ const I18N = {
     appName: 'GA Admin', tagline: 'GenericAgent lifecycle control plane', root: 'GenericAgent root', setupTitle: 'First-time GenericAgent setup', setupDesc: 'Select an existing GA root, or install GA into a new directory.', validateRoot: 'Validate & use', installGA: 'Install GA', installPath: 'Install path', setupOk: 'GA root configured', installDone: 'GA installed and configured', browse: 'Choose directory', checkEnv: 'Check Python / Git', envReady: 'Environment ready', envMissing: 'Environment missing', save: 'Save', refresh: 'Refresh', busy: 'Busy', ready: 'Ready', error: 'Error', empty: 'Empty', enabled: 'Enabled', disabled: 'Disabled', start: 'Start', stop: 'Stop', running: 'Running', stopped: 'Stopped', language: 'Language', show: 'Show', hide: 'Hide', search: 'Search', read: 'Read', create: 'Create', remove: 'Delete', backup: 'writes create backups', autostart: 'Autostart', enableAutostart: 'Enable autostart', disableAutostart: 'Disable autostart', unsupported: 'Unsupported',
     nav: { overview: 'Overview', chat: 'Chat', control: 'Control', files: 'Files', tasks: 'Tasks', memory: 'Memory', channels: 'Channels', autonomous: 'Autonomous', schedule: 'Schedule', models: 'Models', logs: 'Logs' },
     desc: { overview: 'Understand and take over GA lifecycle by native domains.', chat: 'GA native conversation, uploads and streaming UI migrated from reactapp.', control: 'Readiness, capability map, risks and recent reports.', files: 'Safely browse text files inside GA root with tail and search.', tasks: 'Conversations, task files, batch entrypoints and task services.', memory: 'Layered memory, SOPs and utility indexes.', channels: 'Desktop, TUI, Web and IM Bot entrypoints.', autonomous: 'Reflection, autonomous runs, Goal Mode and team workers.', schedule: 'View, edit, create and delete sche_tasks JSON jobs.', models: 'Import, preview and write GA mykey.py model config.', logs: 'Process state and output logs.' },
-    cards: { processes: 'Processes', running: 'Running', stopped: 'Stopped', memoryLayers: 'Memory layers', sopTools: 'SOP/tools', schedule: 'Scheduled jobs', enabledTasks: 'Enabled', reports: 'Reports', coreFiles: 'Core files', channels: 'Channels', reflect: 'Reflect scripts', health: 'GA health', capabilities: 'Capabilities', risks: 'Risks' },
-    lists: { serviceGroups: 'Service domains', coreFiles: 'Core files', reflect: 'Reflect / Autonomous', frontends: 'Frontends / Channels', memory: 'Memory layers', sop: 'SOPs and tools', taskServices: 'Task services', frontendServices: 'Frontend services', reflectServices: 'Reflect services', discoveredChannels: 'Discovered channels', reflectScripts: 'Reflect scripts', scheduledTasks: 'Scheduled jobs', recentReports: 'Recent reports', processes: 'Processes', generatedPreview: 'Generated preview', riskHints: 'Takeover hints', autostart: 'Autostart', capabilities: 'Capability map', readiness: 'Readiness', fileList: 'Files', filePreview: 'Preview', searchResults: 'Search results', editor: 'Editor' },
+    cards: { processes: 'Processes', running: 'Running', stopped: 'Stopped', memoryLayers: 'Memory layers', sopTools: 'SOP/tools', schedule: 'Scheduled jobs', enabledTasks: 'Enabled', reports: 'Reports', coreFiles: 'Core files', reflect: 'Reflect scripts', health: 'GA health', capabilities: 'Capabilities', risks: 'Risks' },
+    lists: { serviceGroups: 'Service domains', coreFiles: 'Core files', reflect: 'Reflect / Autonomous', frontends: 'Frontends / Channels', memory: 'Memory layers', sop: 'SOPs and tools', taskServices: 'Task services', frontendServices: 'Frontend services', reflectServices: 'Reflect services', reflectScripts: 'Reflect scripts', scheduledTasks: 'Scheduled jobs', recentReports: 'Recent reports', processes: 'Processes', generatedPreview: 'Generated preview', riskHints: 'Takeover hints', autostart: 'Autostart', capabilities: 'Capability map', readiness: 'Readiness', fileList: 'Files', filePreview: 'Preview', searchResults: 'Search results', editor: 'Editor' },
     hints: { rootSaved: 'GA root saved', taskSaved: 'Task saved with backup', taskDeleted: 'Task deleted with backup', taskToggled: 'Task state updated', modelsSaved: 'mykey.py backed up and written', savedSecret: 'Saved; type a new value to replace', secret: 'API Key / Token', noFrontend: 'No frontend service found', noReflect: 'No reflect service found', noTasks: 'No sche_tasks/*.json', noLogs: 'No logs', previewHelp: 'Preview generated config; writing mykey.py backs up first.', modelSource: 'Source', secretHidden: 'Real secret hidden', addProfile: 'Add profile', preview: 'Preview', writeMykey: 'Write mykey.py', filePath: 'relative path', searchText: 'search text', tailLines: 'tail lines', newTaskId: 'new_task', jsonHelp: 'JSON must be an object; save/delete creates timestamped .bak.' },
     fields: { varName: 'Var name', type: 'Type', name: 'Name', model: 'Model', apiBase: 'API Base', apiKey: 'API Key', stream: 'Stream', maxRetries: 'Retries', readTimeout: 'Timeout', reasoningEffort: 'Reasoning effort', editor: 'JSON content' }
   }
@@ -38,14 +51,16 @@ const group = (items, pred) => (items || []).filter(pred)
 function Stat({ label, value, icon }) { return <div className="stat"><div>{icon}</div><span>{label}</span><b>{value}</b></div> }
 function Panel({ title, children, className = '' }) { return <div className={`panel ${className}`}><div className="panel-title">{title}</div>{children}</div> }
 function EntryList({ items = [], empty }) { return <div className="entry-list">{items.length ? items.map((e, i) => <div className="entry" key={`${e.path || e.name}-${i}`}><b>{e.name || e.path}</b><span>{e.path}{e.kind ? ` · ${e.kind}` : ''}{e.size ? ` · ${e.size} B` : ''}</span></div>) : <p className="muted">{empty}</p>}</div> }
-function ServiceRow({ svc, onStart, onStop, onLogs, t }) { return <div className="service-card"><div><b>{svc.name}</b><span title={svc.command?.join(' ')}>{svc.command?.join(' ')}</span><em>{svc.kind}{svc.pid ? ` · PID ${svc.pid}` : ''}</em></div><div className={svc.running ? 'ok' : 'err'}>{svc.running ? t.running : t.stopped}</div><div className="svc-actions"><button disabled={svc.running} onClick={() => onStart(svc.name)}><Play size={14}/>{t.start}</button><button disabled={!svc.running} onClick={() => onStop(svc.name)}><Square size={14}/>{t.stop}</button><button onClick={() => onLogs?.(svc.name)}><Eye size={14}/>{t.logs}</button></div></div> }
+function ServiceRow({ svc, onStart, onStop, onLogs, onAutostart, t }) { return <div className="service-card"><div><b>{svc.name}</b><span title={svc.command?.join(' ')}>{svc.command?.join(' ')}</span><em>{svc.kind}{svc.pid ? ` · PID ${svc.pid}` : ''}</em></div><div className={svc.running ? 'ok' : 'err'}>{svc.running ? t.running : t.stopped}</div><div className="svc-actions"><button disabled={svc.running} onClick={() => onStart(svc.name)}><Play size={14}/>{t.start}</button><button disabled={!svc.running} onClick={() => onStop(svc.name)}><Square size={14}/>{t.stop}</button><button onClick={() => onLogs?.(svc.name)}><Eye size={14}/>{t.logs}</button><label className="toggle-inline"><input type="checkbox" checked={!!svc.autostart} onChange={e => onAutostart?.(svc.name, e.target.checked)} />{t.autostartService}</label></div></div> }
+function ChannelServiceTable({ services = [], onStart, onStop, onLogs, onAutostart, t }) { return <div className="channel-table-wrap"><table className="channel-table"><thead><tr><th>{t.fields?.name || 'Name'}</th><th>{t.fields?.status || 'Status'}</th><th>PID</th><th>{t.fields?.command || 'Command'}</th><th>{t.autostart}</th><th>{t.actions || 'Actions'}</th></tr></thead><tbody>{services.length ? services.map(svc => <tr key={svc.name}><td><b>{svc.name}</b><small>{svc.kind}</small></td><td><span className={svc.running ? 'status-pill running' : 'status-pill stopped'}>{svc.running ? t.running : t.stopped}</span></td><td>{svc.pid || '-'}</td><td><code title={svc.command?.join(' ')}>{svc.command?.join(' ') || '-'}</code></td><td><label className="toggle-inline table-toggle"><input type="checkbox" checked={!!svc.autostart} onChange={e => onAutostart?.(svc.name, e.target.checked)} />{svc.autostart ? t.enabled : t.disabled}</label></td><td><div className="svc-actions table-actions"><button disabled={svc.running} onClick={() => onStart(svc.name)}><Play size={14}/>{t.start}</button><button disabled={!svc.running} onClick={() => onStop(svc.name)}><Square size={14}/>{t.stop}</button><button onClick={() => onLogs?.(svc.name)}><Eye size={14}/>{t.logs}</button></div></td></tr>) : <tr><td colSpan="6" className="empty-cell">{t.hints.noFrontend}</td></tr>}</tbody></table></div> }
 function SecretInput({ value, onChange, t }) { const [show, setShow] = useState(false); return <div className="secret-row"><input type={show ? 'text' : 'password'} value={value || ''} placeholder={t.hints.savedSecret} onChange={e => onChange(e.target.value)} /><button type="button" onClick={() => setShow(!show)}>{show ? t.hide : t.show}</button></div> }
 
 export default function App() {
   const defaultLang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'
   const [lang, setLang] = useState(localStorage.getItem('ga-admin-lang') || defaultLang)
   const t = I18N[lang] || I18N.en
-  const [tab, setTab] = useState('overview')
+  const initialRoute = useMemo(() => parseRoute(), [])
+  const [tab, setTab] = useState(initialRoute.tab)
   const [cfg, setCfg] = useState(null), [health, setHealth] = useState(null), [control, setControl] = useState(null), [services, setServices] = useState([]), [logs, setLogs] = useState([])
   const [root, setRoot] = useState(''), [installRoot, setInstallRoot] = useState(''), [busy, setBusy] = useState(false), [msg, setMsg] = useState(''), [selected, setSelected] = useState('')
   const [setupEnv, setSetupEnv] = useState(null)
@@ -53,6 +68,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]), [modelPreview, setModelPreview] = useState('')
   const [filePath, setFilePath] = useState('memory'), [fileList, setFileList] = useState([]), [fileContent, setFileContent] = useState(''), [fileSearch, setFileSearch] = useState(''), [searchHits, setSearchHits] = useState([]), [tailLines, setTailLines] = useState(200)
   const [taskId, setTaskId] = useState(''), [taskEditor, setTaskEditor] = useState('{}'), [newTaskId, setNewTaskId] = useState('new_task')
+  const [taskSubTab, setTaskSubTab] = useState(initialRoute.taskSubTab)
   const [scheduleArtifactTitle, setScheduleArtifactTitle] = useState(''), [scheduleArtifact, setScheduleArtifact] = useState('')
 
   const inv = health?.inventory || {}
@@ -79,6 +95,19 @@ export default function App() {
     } catch (e) { setMsg(e.message) } finally { setBusy(false) }
   }
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    const onHashChange = () => {
+      const route = parseRoute()
+      setTab(route.tab)
+      setTaskSubTab(route.taskSubTab)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+  useEffect(() => {
+    const next = buildRoute(tab, taskSubTab)
+    if (window.location.hash !== next) window.history.replaceState(null, '', next)
+  }, [tab, taskSubTab])
   useEffect(() => { localStorage.setItem('ga-admin-lang', lang) }, [lang])
   useEffect(() => { if (selected) api(`/api/logs/${encodeURIComponent(selected)}`).then(d => setLogs(d.lines || [])).catch(e => setMsg(e.message)) }, [selected])
 
@@ -89,6 +118,7 @@ export default function App() {
   const validateSetupRoot = async () => { setBusy(true); try { const d = await api('/api/setup/validate', { method:'POST', body: JSON.stringify({ path: root }) }); if (!d.ok) throw new Error('GenericAgent health check failed'); const c = await api('/api/config', { method:'PUT', body: JSON.stringify({ ...cfg, ga_root: d.root }) }); setCfg(c); setRoot(d.root); setMsg(t.setupOk); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const installGA = async () => { setBusy(true); try { const env = setupEnv || await api('/api/setup/env'); setSetupEnv(env); if (!env.ok) throw new Error(t.envMissing); const d = await api('/api/setup/install', { method:'POST', body: JSON.stringify({ path: installRoot || root }) }); setRoot(d.root); setMsg(t.installDone); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const serviceAction = async (name, action) => { setBusy(true); try { await api(`/api/services/${action}`, { method:'POST', body: JSON.stringify({ name }) }); await load(); if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const toggleServiceAutostart = async (name, enabled) => { setBusy(true); try { const d = await api('/api/services/autostart', { method:'POST', body: JSON.stringify({ name, enabled }) }); setServices(d.services || []); setMsg(enabled ? t.enabled : t.disabled) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const loadServiceLogs = async (name = selected) => { if (!name) return; setSelected(name); setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) }
   const viewServiceLogs = async (name) => { setTab('logs'); await loadServiceLogs(name) }
   const toggleTask = async (id, enabled) => { setBusy(true); try { await api('/api/schedule/toggle', { method:'POST', body: JSON.stringify({ id, enabled }) }); setMsg(t.hints.taskToggled); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
@@ -99,11 +129,11 @@ export default function App() {
   const saveFile = async () => { if (!filePath) return; setBusy(true); try { const d = await api('/api/files/write', { method:'POST', body: JSON.stringify({ path:filePath, content:fileContent }) }); setFileContent(d.content || fileContent); setMsg(t.hints.fileSaved || t.saved || 'Saved'); await loadFiles(filePath.includes('/') ? filePath.split('/').slice(0,-1).join('/') : '') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const runSearch = async () => { setBusy(true); try { const d = await api(`/api/files/search?path=${encodeURIComponent(filePath)}&q=${encodeURIComponent(fileSearch)}&limit=80`); setSearchHits(d.hits || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
-  const loadTask = async (id) => { setBusy(true); try { const d = await api(`/api/schedule/task?id=${encodeURIComponent(id)}`); setTaskId(d.id || id); setTaskEditor(safeJson(d.raw)); setTab('schedule') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const saveTask = async () => { setBusy(true); try { await api('/api/schedule/task', { method:'PUT', body: JSON.stringify({ id: taskId || newTaskId, raw: JSON.parse(taskEditor) }) }); setMsg(t.hints.taskSaved); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const createTask = async () => { setTaskId(newTaskId); setTaskEditor(safeJson({ schedule: '09:00', repeat: 'daily', enabled: false, prompt: '' })) }
-  const deleteTask = async () => { if (!taskId) return; setBusy(true); try { await api('/api/schedule/delete', { method:'POST', body: JSON.stringify({ id: taskId }) }); setMsg(t.hints.taskDeleted); setTaskId(''); setTaskEditor('{}'); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const readScheduleArtifact = async (path, targetTab = 'schedule') => { setBusy(true); try { const d = await api(`/api/schedule/artifact?path=${encodeURIComponent(path)}`); setScheduleArtifactTitle(path); setScheduleArtifact(d.content || ''); setTab(targetTab) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const loadTask = async (id) => { setBusy(true); try { const d = await api(`/api/schedule/task?id=${encodeURIComponent(id)}`); setTaskId(d.id || id); setTaskEditor(safeJson(d.raw)); setTab('tasks'); setTaskSubTab('scheduled') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const saveTask = async () => { setBusy(true); try { await api('/api/schedule/task', { method:'PUT', body: JSON.stringify({ id: taskId || newTaskId, raw: JSON.parse(taskEditor) }) }); setMsg(t.hints.taskSaved); await load(); setTaskSubTab('scheduled') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const createTask = async () => { setTaskId(newTaskId); setTaskEditor(safeJson({ schedule: '09:00', repeat: 'daily', enabled: false, prompt: '' })); setTaskSubTab('scheduled') }
+  const deleteTask = async () => { if (!taskId) return; setBusy(true); try { await api('/api/schedule/delete', { method:'POST', body: JSON.stringify({ id: taskId }) }); setMsg(t.hints.taskDeleted); setTaskId(''); setTaskEditor('{}'); await load(); setTaskSubTab('scheduled') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const readScheduleArtifact = async (path, targetTab = 'tasks') => { setBusy(true); try { const d = await api(`/api/schedule/artifact?path=${encodeURIComponent(path)}`); setScheduleArtifactTitle(path); setScheduleArtifact(d.content || ''); setTab(targetTab); setTaskSubTab('reports') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
   const importModels = async () => { setBusy(true); try { const d = await api('/api/models/import-mykey', { method:'POST', body: JSON.stringify({ reveal:false, save:false }) }); setProfiles(d.profiles?.length ? d.profiles : [emptyProfile(0)]); setModelPreview(safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   useEffect(() => { if (tab === 'models' && profiles.length === 0) importModels() }, [tab])
@@ -111,7 +141,7 @@ export default function App() {
   const saveModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, overwrite_active:true }) }); setModelPreview(safeJson(d)); setMsg(t.hints.modelsSaved) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const patchProfile = (idx, patch) => setProfiles(ps => ps.map((p, i) => i === idx ? { ...p, ...patch } : p))
 
-  const nav = ['overview','chat','control','files','tasks','memory','channels','autonomous','schedule','models','logs']
+  const nav = NAV_ITEMS
 
   const needsSetup = !!health && !health?.ok
   if (needsSetup) return <div className="setup-shell"><div className="setup-card"><div className="brand setup-brand"><Bot/><div><h1>{t.setupTitle}</h1><p>{t.setupDesc}</p></div></div><div className="setup-env"><button className="secondary" onClick={checkSetupEnv} disabled={busy}>{t.checkEnv}</button>{setupEnv?.tools?.map(tool => <span key={tool.name} className={tool.ok ? 'ok' : 'err'} title={[tool.path, tool.version, tool.error].filter(Boolean).join('\n')}>{tool.ok ? '✓' : '×'} {tool.name}</span>)}</div><label>{t.root}<div className="setup-path-row"><input value={root} onChange={e=>setRoot(e.target.value)} placeholder="C:\\Users\\...\\GenericAgent"/><button className="secondary" onClick={()=>browseSetupDir('root')} disabled={busy}>{t.browse}</button></div></label><button onClick={validateSetupRoot} disabled={busy || !root}>{busy ? t.busy : t.validateRoot}</button><div className="setup-divider"><span>or</span></div><label>{t.installPath}<div className="setup-path-row"><input value={installRoot} onChange={e=>setInstallRoot(e.target.value)} placeholder="C:\\Users\\...\\GenericAgent"/><button className="secondary" onClick={()=>browseSetupDir('install')} disabled={busy}>{t.browse}</button></div></label><button className="secondary" onClick={installGA} disabled={busy || !(installRoot || root)}>{t.installGA}</button>{msg && <div className="message">{msg}</div>}<p className="setup-note">git clone https://github.com/lsdefine/GenericAgent</p></div></div>
@@ -123,11 +153,70 @@ export default function App() {
       {tab==='chat' && <ChatPage t={t}/>}
       {tab==='control' && <section><div className="stats"><Stat label={t.cards.health} value={health?.ok ? 'OK' : 'FAIL'} icon={<ShieldAlert/>}/><Stat label={t.cards.capabilities} value={control?.capabilities?.length || 0} icon={<Brain/>}/><Stat label={t.cards.risks} value={control?.risks?.length || 0} icon={<ShieldAlert/>}/><Stat label={t.cards.reports} value={control?.reports?.length || 0} icon={<FileCode2/>}/></div><div className="grid2"><Panel title={t.lists.readiness}><EntryList items={(control?.readiness || []).map((r,i)=>({name:r.area, path:r.text, kind:r.level}))} empty="OK"/></Panel><Panel title={t.lists.capabilities}><EntryList items={(control?.capabilities || []).map(c=>({name:c.name,path:c.path,kind:c.kind}))} empty={t.empty}/></Panel><Panel title={t.lists.recentReports}><EntryList items={control?.reports || []} empty={t.empty}/></Panel><Panel title={t.lists.riskHints}><EntryList items={(control?.risks || []).map(r=>({name:r.area,path:r.text,kind:r.level}))} empty="OK"/></Panel></div></section>}
       {tab==='files' && <section><div className="workspace"><Panel title={t.lists.fileList}><div className="inline-form"><input value={filePath} onChange={e=>setFilePath(e.target.value)} placeholder={t.hints.filePath}/><button onClick={()=>loadFiles(filePath)}>{t.read}</button></div><div className="inline-form"><input value={fileSearch} onChange={e=>setFileSearch(e.target.value)} placeholder={t.hints.searchText}/><button onClick={runSearch}><Search size={14}/>{t.search}</button></div><div className="inline-form"><input type="number" value={tailLines} onChange={e=>setTailLines(Number(e.target.value))}/><span>{t.hints.tailLines}</span><button onClick={()=>tailFile(filePath)}>{t.tail || 'Tail'}</button><button onClick={saveFile} disabled={!filePath}><Save size={14}/>{t.save}</button></div><div className="file-list">{fileList.map(e=><button key={e.path} onClick={()=> e.kind==='dir' ? loadFiles(e.path) : readFile(e.path)}>{e.kind==='dir'?'📁':'📄'} {e.path}</button>)}</div><h4>{t.lists.searchResults}</h4>{searchHits.map(h=><button className="hit" key={`${h.path}:${h.line}`} onClick={()=>readFile(h.path)}>{h.path}:{h.line} · {h.preview}</button>)}</Panel><Panel title={t.lists.filePreview} className="log-panel"><textarea className="file-editor" value={fileContent} onChange={e=>setFileContent(e.target.value)} placeholder={t.empty}/></Panel></div></section>}
-      {tab==='tasks' && <section><div className="grid2"><Panel title={t.lists.taskServices}>{taskSvcs.length ? taskSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs}/>) : <EntryList items={tasks.map(task=>({name:task.id,path:`${task.schedule} · ${task.repeat} · ${task.status}`,kind:task.enabled ? t.enabled : t.disabled}))} empty={t.hints.noTasks}/>}</Panel><Panel title={t.lists.scheduledTasks}>{tasks.length ? tasks.map(task=><TaskRow key={task.id} task={task} t={t} onToggle={toggleTask} onEdit={loadTask}/>) : <p className="muted">{t.hints.noTasks}</p>}</Panel></div></section>}
+      {tab==='tasks' && <section className="tasks-page">
+        <div className="stats schedule-stats">
+          <div className="stat"><Activity/><span>{t.lists.taskServices}</span><b>{taskSvcs.length}</b></div>
+          <div className="stat"><CalendarClock/><span>{t.cards.enabledTasks || t.enabled}</span><b>{schedule.enabled || 0}</b></div>
+          <div className="stat"><FolderCog/><span>{t.cards.reports || 'Reports'}</span><b>{schedule.done_count || 0}</b></div>
+          <div className="stat"><ShieldAlert/><span>{t.error}</span><b>{schedule.errors || 0}</b></div>
+        </div>
+
+        <div className="subtabs task-subtabs">
+          <button className={taskSubTab==='services' ? 'active' : ''} onClick={()=>setTaskSubTab('services')}><Server size={14}/>{t.lists.taskServices}</button>
+          <button className={taskSubTab==='scheduled' ? 'active' : ''} onClick={()=>setTaskSubTab('scheduled')}><CalendarClock size={14}/>{t.lists.scheduledTasks}</button>
+          <button className={taskSubTab==='reports' ? 'active' : ''} onClick={()=>setTaskSubTab('reports')}><FolderCog size={14}/>{t.lists.recentReports}</button>
+        </div>
+
+        {taskSubTab==='services' && <div className="single-panel">
+          <Panel title={t.lists.taskServices}>
+            <p className="muted">{t.desc.tasks}</p>
+            <div className="service-list clean-list">
+              {taskSvcs.length
+                ? taskSvcs.map(svc => <ServiceRow key={svc.name} svc={svc} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>)
+                : <p className="muted">{t.hints.noTasks}</p>}
+            </div>
+          </Panel>
+        </div>}
+
+        {taskSubTab==='scheduled' && <div className="workspace tasks-workspace">
+          <Panel title={t.lists.scheduledTasks}>
+            <div className="inline-form task-create">
+              <input value={newTaskId} onChange={e=>setNewTaskId(e.target.value)} placeholder={t.hints.newTaskId}/>
+              <button onClick={createTask}><FileCode2 size={14}/>{t.create}</button>
+              {schedule.log?.exists && <button onClick={()=>readScheduleArtifact('sche_tasks/scheduler.log')}><Terminal size={14}/>{t.nav.logs}</button>}
+            </div>
+            <div className="task-list clean-list">
+              {tasks.length
+                ? tasks.map(task => <TaskRow key={task.id} task={task} t={t} onToggle={toggleTask} onEdit={loadTask} onArtifact={readScheduleArtifact}/>)
+                : <p className="muted">{t.hints.noTasks}</p>}
+            </div>
+          </Panel>
+          <Panel title={`${t.lists.editor} · ${taskId || t.empty}`}>
+            <p className="muted">{t.hints.jsonHelp}</p>
+            <textarea className="json-editor compact-editor" value={taskEditor} onChange={e=>setTaskEditor(e.target.value)}/>
+            <div className="actions">
+              <button onClick={saveTask} disabled={!taskId && !newTaskId}><Save size={14}/>{t.save}</button>
+              <button onClick={deleteTask} disabled={!taskId}><XCircle size={14}/>{t.remove}</button>
+            </div>
+          </Panel>
+        </div>}
+
+        {taskSubTab==='reports' && <div className="workspace tasks-workspace">
+          <Panel title={t.lists.recentReports}>
+            <div className="report-list clean-list">
+              {(schedule.done_recent || []).length
+                ? (schedule.done_recent || []).map(r => <button key={r.path} onClick={()=>readScheduleArtifact(r.path)}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)
+                : <p className="muted">{t.empty}</p>}
+            </div>
+          </Panel>
+          <Panel title={scheduleArtifactTitle || t.lists.generatedPreview}>
+            <pre className="artifact-view">{scheduleArtifact || t.empty}</pre>
+          </Panel>
+        </div>}
+      </section>}
       {tab==='memory' && <section><div className="grid2"><Panel title={t.lists.memory}><EntryList items={[inv.memory?.insight, inv.memory?.facts].filter(Boolean)} empty={t.empty}/></Panel><Panel title={t.lists.sop}><EntryList items={[...(inv.memory?.sops||[]), ...(inv.memory?.utils||[])]} empty={t.empty}/></Panel></div></section>}
-      {tab==='channels' && <section><div className="stats"><Stat label={t.lists.frontendServices} value={frontendSvcs.length} icon={<Server/>}/><Stat label={t.running} value={frontendSvcs.filter(s=>s.running).length} icon={<CheckCircle2/>}/><Stat label={t.stopped} value={frontendSvcs.filter(s=>!s.running).length} icon={<XCircle/>}/></div><div className="grid2"><Panel title={t.lists.frontendServices}>{frontendSvcs.length ? frontendSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs}/>) : <p className="muted">{t.hints.noFrontend}</p>}</Panel><Panel title={t.nav.logs}><p className="muted">{t.desc.channels}</p><p className="muted">{t.hints.noFrontend}</p></Panel></div></section>}
-      {tab==='autonomous' && <section><div className="grid2"><Panel title={t.lists.reflectServices}>{reflectSvcs.length ? reflectSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs}/>) : <p className="muted">{t.hints.noReflect}</p>}</Panel><Panel title={t.lists.reflectScripts}><EntryList items={inv.reflect || []} empty={t.hints.noReflect}/></Panel></div><Panel title={t.lists.recentReports}><div className="report-list">{(inv.autonomous_reports || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path, 'autonomous')}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifactTitle?.includes('autonomous_reports') ? (scheduleArtifact || t.empty) : t.empty}</pre></Panel></section>}
-      {tab==='schedule' && <section><div className="stats schedule-stats"><div className="stat"><CalendarClock/><span>{t.enabled}</span><b>{schedule.enabled || 0}</b></div><div className="stat"><XCircle/><span>Overdue</span><b>{schedule.overdue || 0}</b></div><div className="stat"><FolderCog/><span>Reports</span><b>{schedule.done_count || 0}</b></div><div className="stat"><ShieldAlert/><span>Errors</span><b>{schedule.errors || 0}</b></div></div><div className="workspace"><Panel title={t.lists.scheduledTasks}><div className="inline-form"><input value={newTaskId} onChange={e=>setNewTaskId(e.target.value)} placeholder={t.hints.newTaskId}/><button onClick={createTask}>{t.create}</button>{schedule.log?.exists && <button onClick={()=>readScheduleArtifact('sche_tasks/scheduler.log')}>{t.nav.logs}</button>}</div>{tasks.map(task=><TaskRow key={task.id} task={task} t={t} onToggle={toggleTask} onEdit={loadTask} onArtifact={readScheduleArtifact}/>)}</Panel><Panel title={`${t.lists.editor} · ${taskId || t.empty}`}><p className="muted">{t.hints.jsonHelp}</p><textarea className="json-editor" value={taskEditor} onChange={e=>setTaskEditor(e.target.value)}/><div className="actions"><button onClick={saveTask}><Save size={14}/>{t.save}</button><button onClick={deleteTask} disabled={!taskId}><XCircle size={14}/>{t.remove}</button></div></Panel></div><Panel title={scheduleArtifactTitle || 'sche_tasks/done'}><div className="report-list">{(schedule.done_recent || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path)}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifact || t.empty}</pre></Panel></section>}
+      {tab==='channels' && <section className="channels-page"><div className="stats"><Stat label={t.lists.frontendServices} value={frontendSvcs.length} icon={<Server/>}/><Stat label={t.running} value={frontendSvcs.filter(s=>s.running).length} icon={<CheckCircle2/>}/><Stat label={t.stopped} value={frontendSvcs.filter(s=>!s.running).length} icon={<XCircle/>}/></div><Panel title={t.lists.frontendServices} className="channels-panel"><p className="muted">{t.desc.channels}</p><ChannelServiceTable services={frontendSvcs} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/></Panel></section>}
+      {tab==='autonomous' && <section><div className="grid2"><Panel title={t.lists.reflectServices}>{reflectSvcs.length ? reflectSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>) : <p className="muted">{t.hints.noReflect}</p>}</Panel><Panel title={t.lists.reflectScripts}><EntryList items={inv.reflect || []} empty={t.hints.noReflect}/></Panel></div><Panel title={t.lists.recentReports}><div className="report-list">{(inv.autonomous_reports || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path, 'autonomous')}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifactTitle?.includes('autonomous_reports') ? (scheduleArtifact || t.empty) : t.empty}</pre></Panel></section>}
       {tab==='models' && <Models t={t} profiles={profiles} setProfiles={setProfiles} patchProfile={patchProfile} importModels={importModels} previewModels={previewModels} saveModels={saveModels} modelPreview={modelPreview}/>} 
       {tab==='logs' && <section className="logs-page"><div className="logs-layout"><Panel title={t.lists.processes} className="logs-side"><div className="logs-toolbar"><label>{t.hints.tailLines}<input type="number" min="20" max="2000" value={tailLines} onChange={e=>setTailLines(Number(e.target.value) || 200)}/></label><button disabled={!selected} onClick={()=>loadServiceLogs(selected)}><RefreshCw size={14}/>{t.refresh}</button></div><div className="logs-service-list">{services.map(s => <button className={selected===s.name?'log-service active':'log-service'} key={s.name} onClick={()=>loadServiceLogs(s.name)}><span className={s.running?'dot running':'dot'}></span><span className="log-service-name">{s.name}</span><small>{s.kind}{s.pid ? ` · PID ${s.pid}` : ''}</small></button>)}</div></Panel><Panel title={`Logs · ${selected || '-'}`} className="log-panel"><div className="log-head"><div>{selected && <p className="muted log-command" title={services.find(s=>s.name===selected)?.command?.join(' ')}>{services.find(s=>s.name===selected)?.command?.join(' ')}</p>}<span className="log-count">{logs.length} lines · UTF-8</span></div><div className="actions"><button disabled={!selected || services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'start')}><Play size={14}/>{t.start}</button><button disabled={!selected || !services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'stop')}><Square size={14}/>{t.stop}</button></div></div><pre className="log-view">{logs.join('\n') || t.hints.noLogs}</pre></Panel></div></section>}
     </main>
