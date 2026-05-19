@@ -205,17 +205,33 @@ const parseToolArgsBlock = (block = '') => {
 }
 
 const parseAskUserPayload = (raw = '') => {
-  const text = String(raw || '').trim().replace(/^```(?:json|text)?\s*/i, '').replace(/```$/i, '').trim()
-  if (!text) return { question:'', candidates:[], raw:'' }
-  try {
-    const data = JSON.parse(text)
-    const question = String(data?.question || data?.prompt || data?.message || '').trim()
-    const candidates = Array.isArray(data?.candidates) ? data.candidates.map(x => String(x || '').trim()).filter(Boolean) : []
-    return { question, candidates, raw:text }
-  } catch {
-    const q = text.match(/"question"\s*:\s*"([\s\S]*?)"/i)?.[1]
-    return { question: q ? q.replace(/\\n/g, '\n') : text, candidates:[], raw:text }
+  const source = String(raw || '').trim()
+  const stripFence = (x = '') => String(x || '').trim().replace(/^```(?:json|text)?\s*/i, '').replace(/```$/i, '').trim()
+  const choices = [stripFence(source)]
+  const jsonLike = source.match(/\{[\s\S]*"(?:question|candidates)"[\s\S]*\}/)
+  if (jsonLike) choices.unshift(stripFence(jsonLike[0]))
+  for (const text of choices) {
+    if (!text) continue
+    try {
+      const data = JSON.parse(text)
+      const question = String(data?.question || data?.prompt || data?.message || '').trim()
+      const opts = Array.isArray(data?.candidates) ? data.candidates.map(x => String(x || '').trim()).filter(Boolean) : []
+      if (question || opts.length) return { question, candidates:opts, raw:text, structured:true }
+    } catch {}
   }
+  const text = stripFence(source)
+  if (!text) return { question:'', candidates:[], raw:'', structured:false }
+  const q = text.match(/"question"\s*:\s*"([\s\S]*?)"/i)?.[1]
+  const question = q ? q.replace(/\\n/g, '\n').replace(/\\"/g, '"') : text
+  return { question, candidates:[], raw:text, structured:false }
+}
+
+const getAskUserPayload = (call = {}) => {
+  const fromResult = parseAskUserPayload(call.result)
+  if (fromResult.structured) return fromResult
+  const fromArgs = parseAskUserPayload(call.args)
+  if (fromArgs.structured || fromArgs.question || fromArgs.candidates.length) return fromArgs
+  return fromResult
 }
 
 function AskUserPanel({ call }) {
