@@ -87,6 +87,7 @@ export default function App() {
   const deleteTask = async () => { if (!taskId) return; setBusy(true); try { await api('/api/schedule/task/delete', { method:'POST', body: JSON.stringify({ id: taskId }) }); setMsg(t.hints.taskDeleted); setTaskId(''); setTaskEditor('{}'); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
   const importModels = async () => { setBusy(true); try { const d = await api('/api/models/import-mykey', { method:'POST', body: JSON.stringify({ reveal:false, save:false }) }); setProfiles(d.profiles?.length ? d.profiles : [emptyProfile(0)]); setModelPreview(safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  useEffect(() => { if (tab === 'models' && profiles.length === 0) importModels() }, [tab])
   const previewModels = async () => { setBusy(true); try { const d = await api('/api/models/preview', { method:'POST', body: JSON.stringify({ profiles }) }); setModelPreview(d.python || safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const saveModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, overwrite_active:true }) }); setModelPreview(safeJson(d)); setMsg(t.hints.modelsSaved) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const patchProfile = (idx, patch) => setProfiles(ps => ps.map((p, i) => i === idx ? { ...p, ...patch } : p))
