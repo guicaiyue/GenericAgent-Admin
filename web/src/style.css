@@ -686,7 +686,6 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-session-more{position:absolute;right:7px;bottom:5px;transform:none;width:26px!important;height:22px!important;min-width:26px!important;min-height:22px!important;padding:0!important;border:0!important;border-radius:7px;background:#e8e8e8!important;color:#4f4f4f;box-shadow:none!important;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;z-index:3}
 .oa-session-row:hover .oa-session-more,.oa-session-row.active .oa-session-more,.oa-session-more.is-open{opacity:1;pointer-events:auto}
 .oa-session-more:hover,.oa-session-more.is-open{background:#d9d9d9!important;color:#111}
-.oa-session-menu{right:4px;bottom:30px;top:auto}
 .oa-empty-list{margin:14px 10px;color:#8a8a8a;font-size:13px}
 .oa-sidebar-foot{border-top:0;padding:6px 0 0;display:grid;gap:2px}
 .oa-sidebar-foot button{min-height:36px;border:0;border-radius:10px;background:transparent;color:#555;justify-content:flex-start;padding:0 10px;box-shadow:none}
@@ -992,7 +991,7 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-session-more{position:absolute;right:7px;bottom:5px;width:26px!important;height:22px!important;min-width:26px!important;min-height:22px!important;padding:0!important;border:0!important;background:#e8e8e8!important;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#4f4f4f;opacity:0;pointer-events:none;cursor:pointer;z-index:30;box-shadow:none!important}
 .oa-session-row:hover .oa-session-more,.oa-session-row.active .oa-session-more,.oa-session-more.is-open{opacity:1;pointer-events:auto}
 .oa-session-more:hover,.oa-session-more.is-open{background:#d9d9d9!important;color:#111}
-.oa-session-menu{position:absolute;right:4px;bottom:31px;top:auto;z-index:40;width:136px;background:#fff;border:1px solid #e5e5e5;border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.16),0 0 0 1px rgba(0,0,0,.02);padding:6px;overflow:hidden}
+.oa-session-menu{position:fixed;z-index:1000;width:136px;background:#fff;border:1px solid #e5e5e5;border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.16),0 0 0 1px rgba(0,0,0,.02);padding:6px;overflow:hidden}
 .oa-session-menu button{width:100%;height:36px;border:0;background:transparent;border-radius:9px;display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:0 10px;font-size:13px;font-weight:400;text-align:left;cursor:pointer;color:#2f2f2f;white-space:nowrap}
 .oa-session-menu button:hover{background:#f1f1f1}
 .oa-session-menu button.danger{color:#d92d20}

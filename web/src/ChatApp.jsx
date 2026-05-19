@@ -402,6 +402,7 @@ export default function ChatApp() {
   const [llms, setLlms] = useState([])
   const [llmNo, setLlmNo] = useState(0)
   const [menuOpen, setMenuOpen] = useState('')
+  const [menuPos, setMenuPos] = useState(null)
   const [editing, setEditing] = useState('')
   const [draftTitle, setDraftTitle] = useState('')
   const [attachments, setAttachments] = useState([])
@@ -494,6 +495,7 @@ export default function ChatApp() {
     setErr('')
     setNotice('')
     setMenuOpen('')
+    setMenuPos(null)
     if (refreshList) setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
     await loadChatState(d.id)
   }
@@ -519,11 +521,12 @@ export default function ChatApp() {
     await api(`/api/chat/session/${id}`, { method:'DELETE' })
     setSessions(xs => xs.filter(x => x.id !== id))
     setMenuOpen('')
+    setMenuPos(null)
     if (id === sid) { setSid(''); setMessages([]); setNotice('会话已删除') }
     setTimeout(() => loadSessions('').catch(()=>{}), 0)
   }
 
-  const startRename = (s) => { setEditing(s.id); setDraftTitle(shortTitle(s)); setMenuOpen('') }
+  const startRename = (s) => { setEditing(s.id); setDraftTitle(shortTitle(s)); setMenuOpen(''); setMenuPos(null) }
   const saveRename = async (id) => {
     const title = draftTitle.trim()
     if (!title) return
@@ -658,14 +661,24 @@ export default function ChatApp() {
           </div> : <button className="oa-session" onClick={()=>openSession(s.id)} title={shortTitle(s)}>
             <span title={shortTitle(s)}>{s.running && <i className="oa-session-running-dot" aria-hidden="true"/>}{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条{s.running && <em className="oa-session-running-label">运行中</em>}</small>
           </button>}
-          {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{e.stopPropagation(); setMenuOpen(menuOpen === s.id ? '' : s.id)}} aria-label="会话操作"><MoreHorizontal size={16}/></button>}
-          {menuOpen === s.id && <div className="oa-session-menu">
-            <button onClick={()=>startRename(s)}><Edit3 size={14}/>重命名</button>
-            <button className="danger" onClick={()=>deleteSession(s.id)}><Trash2 size={14}/>删除</button>
-          </div>}
+          {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{
+            e.stopPropagation()
+            if (menuOpen === s.id) { setMenuOpen(''); setMenuPos(null); return }
+            const r = e.currentTarget.getBoundingClientRect()
+            setMenuPos({ top: Math.max(8, r.top - 78), left: Math.max(8, r.right - 136) })
+            setMenuOpen(s.id)
+          }} aria-label="会话操作"><MoreHorizontal size={16}/></button>}
         </div>)}
         {!sessions.length && <div className="oa-empty-list">暂无历史会话</div>}
       </div>
+      {menuOpen && menuPos && (() => {
+        const s = sessions.find(x => x.id === menuOpen)
+        if (!s) return null
+        return <div className="oa-session-menu" style={{ top: menuPos.top, left: menuPos.left }} onClick={e=>e.stopPropagation()}>
+          <button onClick={()=>startRename(s)}><Edit3 size={14}/>重命名</button>
+          <button className="danger" onClick={()=>deleteSession(s.id)}><Trash2 size={14}/>删除</button>
+        </div>
+      })()}
       <div className="oa-sidebar-foot">
         <button onClick={()=>loadSessions().catch(e=>setErr(e.message))}><RefreshCw size={15}/>刷新会话</button>
         <button onClick={()=>window.location.href='/'}><ChevronLeft size={15}/>返回管理台</button>
