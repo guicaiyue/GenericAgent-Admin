@@ -74,40 +74,54 @@ function TextMarkdown({ text = '' }) {
   })}</>
 }
 
+const FINAL_MARKER_RE = /```+\s*\n?\[Info\]\s*Final response to user\.\s*\n?```+/i
+const TURN_HEADER_RE = /\*\*\s*LLM Running \(Turn\s+(\d+)\)\s*\.\.\.\s*\*\*/gi
+
+const cleanRunBody = (s = '') => String(s || '')
+  .replace(/<summary>[\s\S]*?<\/summary>/gi, '')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim()
+
 const parseAssistantContent = (raw = '') => {
-  let text = String(raw || '').replace(/\r\n/g, '\n')
+  const full = String(raw || '').replace(/\r\n/g, '\n')
+  const finalMatch = full.match(FINAL_MARKER_RE)
+  const processText = finalMatch ? full.slice(0, finalMatch.index) : full
+  const finalText = finalMatch ? full.slice(finalMatch.index + finalMatch[0].length) : ''
   const runs = []
-  text = text.replace(/\*\*\s*LLM Running \(Turn\s+(\d+)\)\s*\.\.\.\s*\*\*/gi, (_, n) => {
-    runs.push({ turn: Number(n) || runs.length + 1, title: '' })
-    return '\n'
-  })
-  const summaries = []
-  text = text.replace(/<summary>([\s\S]*?)<\/summary>/gi, (_, body) => {
-    const s = body.trim()
-    if (s) summaries.push(s)
-    return '\n'
-  })
-  summaries.forEach((s, i) => {
-    if (runs[i]) runs[i].title = s
-    else runs.push({ turn: runs.length + 1, title: s })
-  })
-  text = text.replace(/```+\s*\n?\[Info\]\s*Final response to user\.\s*\n?```+/gi, '\n')
-  text = text.replace(/\n{3,}/g, '\n\n').trim()
-  return { runs, body: text }
+  const matches = [...processText.matchAll(TURN_HEADER_RE)]
+
+  if (matches.length) {
+    matches.forEach((m, i) => {
+      const start = m.index + m[0].length
+      const end = i + 1 < matches.length ? matches[i + 1].index : processText.length
+      const chunk = processText.slice(start, end).trim()
+      const summary = chunk.match(/<summary>([\s\S]*?)<\/summary>/i)
+      const title = summary?.[1]?.trim() || `Turn ${m[1]}`
+      runs.push({ turn: Number(m[1]) || i + 1, title, body: cleanRunBody(chunk) })
+    })
+    return { runs, body: (finalText || '').replace(/\n{3,}/g, '\n\n').trim() }
+  }
+
+  return { runs: [], body: full.replace(FINAL_MARKER_RE, '').replace(/\n{3,}/g, '\n\n').trim() }
 }
 
 function AssistantContent({ content, pending }) {
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
   const parsed = parseAssistantContent(content)
   return <div className={`oa-content ${parsed.runs.length ? 'oa-agent-output' : ''}`}>
-    {parsed.runs.length > 0 && <details className="oa-run-card" open={pending}>
-      <summary><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</summary>
-      <div className="oa-run-list">{parsed.runs.map((r, i) => <span key={i}><b>Turn {r.turn}</b>{r.title && <em>{r.title}</em>}</span>)}</div>
-    </details>}
-    <MarkdownBlock text={parsed.body || content || ''} />
+    {parsed.runs.length > 0 && <div className="oa-turn-stack">
+      <div className="oa-turn-stack-head"><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</div>
+      {parsed.runs.map((r, i) => <section className="oa-turn-card" key={`${r.turn}-${i}`}>
+        <header><span>Turn {r.turn}</span><b>{r.title}</b></header>
+        {r.body ? <MarkdownBlock text={r.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>}
+      </section>)}
+    </div>}
+    {(parsed.body || !parsed.runs.length) && <div className={parsed.runs.length ? 'oa-final-answer' : ''}>
+      {parsed.runs.length && <div className="oa-final-label">返回给用户</div>}
+      <MarkdownBlock text={parsed.body || content || ''} />
+    </div>}
   </div>
 }
-
 const examples = [
   ['巡检系统', '概览当前 GenericAgent 状态'],
   ['定位错误', '帮我检查最近的错误日志，并给出可执行修复方案'],
