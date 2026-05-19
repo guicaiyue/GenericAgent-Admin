@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Clock3, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Bot, ChevronLeft, Clock3, Menu, MessageSquarePlus, RefreshCw, Send, Trash2 } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -13,6 +13,7 @@ const fmtTime = (v) => {
 }
 
 const shortTitle = (s) => s?.title || '新会话'
+const examples = ['概览当前 GenericAgent 状态', '帮我检查最近的错误日志', '规划下一步自主进化任务', '总结当前模型配置风险']
 
 export default function ChatApp() {
   const [sessions, setSessions] = useState([])
@@ -34,49 +35,73 @@ export default function ChatApp() {
     if (next) await openSession(next, false)
     return list
   }
+
   const openSession = async (id, refreshList = true) => {
     const d = await api(`/api/chat/session/${id}`)
-    setSid(d.id); setMessages(d.messages || []); setErr('')
-    if (refreshList) setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
+    setSid(d.id)
+    setMessages(d.messages || [])
+    setErr('')
+    setNotice('')
+    if (refreshList) {
+      setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
+    }
   }
+
   const newSession = async () => {
     const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-    setSid(d.id); setMessages([]); setPrompt(''); setErr(''); setNotice('已创建新会话')
+    setSid(d.id)
+    setMessages([])
+    setPrompt('')
+    setErr('')
+    setNotice('已创建新会话')
     await loadSessions(d.id)
   }
+
   const deleteSession = async (id) => {
     if (!id || !confirm('删除这个会话？')) return
     await api(`/api/chat/session/${id}`, { method:'DELETE' })
     setNotice('会话已删除')
-    setSid(''); setMessages([])
+    setSid('')
+    setMessages([])
     await loadSessions('')
   }
+
   useEffect(()=>{ loadSessions('').catch(e=>setErr(e.message)) }, [])
   useEffect(()=>{ endRef.current?.scrollIntoView({ behavior:'smooth', block:'end' }) }, [messages, busy])
 
   const send = async () => {
     const text = prompt.trim()
     if (!text || busy) return
-    let cur = sid
-    if (!cur) {
+    setBusy(true)
+    setErr('')
+    setNotice('')
+    setPrompt('')
+    let useSid = sid
+    let optimistic = [...messages]
+    if (!useSid) {
       const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-      cur = d.id; setSid(cur)
+      useSid = d.id
+      setSid(useSid)
+      await loadSessions(useSid)
+      optimistic = []
     }
-    setPrompt(''); setBusy(true); setErr(''); setNotice('')
-    const ts = Math.floor(Date.now()/1000)
-    const user = { id: `u-${Date.now()}`, role:'user', content:text, created_at: ts }
-    const assistant = { id: `a-${Date.now()}`, role:'assistant', content:'', created_at: ts }
-    setMessages(ms => [...ms, user, assistant])
+    const now = Math.floor(Date.now()/1000)
+    const user = { id:`u-${Date.now()}`, role:'user', content:text, created_at:now }
+    const assistant = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:now }
+    setMessages([...optimistic, user, assistant])
     try {
-      const res = await fetch(`/api/chat/${cur}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text, client_user_id:user.id }) })
-      if (!res.ok) throw new Error(await res.text())
-      const reader = res.body.getReader(), dec = new TextDecoder()
-      let buf = '', content = ''
+      const res = await fetch(`/api/chat/${useSid}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text, client_user_id:user.id }) })
+      if (!res.ok || !res.body) throw new Error(await res.text())
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      let content = ''
       while (true) {
-        const {value, done} = await reader.read()
+        const {done, value} = await reader.read()
         if (done) break
         buf += dec.decode(value, {stream:true})
-        const lines = buf.split('\n'); buf = lines.pop() || ''
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
         for (const line of lines) {
           if (!line.trim()) continue
           const ev = JSON.parse(line)
@@ -84,41 +109,75 @@ export default function ChatApp() {
             content += ev.delta || ''
             setMessages(ms => ms.map(m => m.id === assistant.id ? {...m, content} : m))
           }
-          if (ev.type === 'error') {
-            const msg = ev.message || '执行失败'
-            setMessages(ms => ms.map(m => m.id === assistant.id ? {...m, content: content || msg, error:true} : m))
-            setErr(msg)
-          }
-          if (ev.type === 'done' && ev.message) {
-            content = ev.message.content || content
+          if ((ev.type === 'done' || ev.type === 'error') && ev.message) {
             setMessages(ms => ms.map(m => m.id === assistant.id ? ev.message : m))
           }
+          if (ev.type === 'error') setErr(ev.error || 'Worker error')
         }
       }
-      await loadSessions(cur)
-    } catch(e) {
+      await loadSessions(useSid)
+    } catch (e) {
       setErr(e.message)
       setMessages(ms => ms.map(m => m.id === assistant.id ? {...m, content:e.message, error:true} : m))
-    } finally { setBusy(false) }
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const examples = ['总结当前 GenericAgent 状态并指出风险', '读取最近自主任务报告并给出下一步建议', '检查模型配置是否完整']
-  return <div className="chat-app">
-    <aside className={`chat-dock ${collapsed ? 'collapsed' : ''}`}>
-      <div className="chat-brand"><div className="logo-orb"><Bot size={22}/></div><div><b>GenericAgent Chat</b><span>Native Worker Bridge</span></div></div>
-      <div className="dock-actions"><button onClick={newSession}><MessageSquarePlus size={16}/>新会话</button><button onClick={()=>loadSessions().catch(e=>setErr(e.message))}><RefreshCw size={16}/></button></div>
-      <div className="session-list">{sessions.map(s => <button key={s.id} className={s.id===sid?'selected':''} onClick={()=>openSession(s.id)}><b>{shortTitle(s)}</b><span><Clock3 size={12}/>{fmtTime(s.updated_at)} · {s.count || 0} 条</span></button>)}</div>
-      <div className="dock-foot"><button onClick={()=>setCollapsed(!collapsed)}>{collapsed ? <PanelLeftOpen size={16}/> : <PanelLeftClose size={16}/>}侧栏</button></div>
+  return <div className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
+    <aside className="oa-sidebar">
+      <div className="oa-sidebar-top">
+        <button className="oa-icon-btn" onClick={()=>setCollapsed(true)} title="收起侧栏"><Menu size={18}/></button>
+        <button className="oa-new-chat" onClick={newSession}><MessageSquarePlus size={16}/>新对话</button>
+      </div>
+      <div className="oa-session-list">
+        {sessions.map(s => <button key={s.id} className={`oa-session ${s.id===sid?'active':''}`} onClick={()=>openSession(s.id)}>
+          <span>{shortTitle(s)}</span>
+          <small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0}</small>
+        </button>)}
+      </div>
+      <div className="oa-sidebar-foot">
+        <button onClick={()=>loadSessions().catch(e=>setErr(e.message))}><RefreshCw size={15}/>刷新</button>
+        <button onClick={()=>window.location.href='/'}><ChevronLeft size={15}/>管理台</button>
+      </div>
     </aside>
-    <main className="chat-stage">
-      <header className="chat-hero"><div><p className="eyebrow"><Sparkles size={15}/>GA 原生对话</p><h1>{shortTitle(current)}</h1><span>{current ? `会话 ${current.id}` : '创建或选择一个会话开始'}</span></div><div className="hero-actions"><button onClick={()=>window.location.href='/'}>返回管理台</button><button disabled={!sid} onClick={()=>deleteSession(sid)}><Trash2 size={15}/>删除</button></div></header>
-      {(err || notice) && <div className={err ? 'chat-alert error' : 'chat-alert'}>{err || notice}</div>}
-      <section className="conversation">
-        {messages.length === 0 && <div className="welcome-card"><h2>把任务交给 GenericAgent</h2><p>独立标签页拥有更宽的上下文空间，Go 后端会按需启动 Python Worker 并流式返回结果。</p><div>{examples.map(x => <button key={x} onClick={()=>setPrompt(x)}>{x}</button>)}</div></div>}
-        {messages.map(m => <article key={m.id} className={`chat-msg ${m.role} ${m.error?'error':''}`}><div className="avatar">{m.role === 'user' ? '你' : 'GA'}</div><div className="msg-card"><div className="msg-meta"><b>{m.role === 'user' ? 'User' : 'GenericAgent'}</b><span>{fmtTime(m.created_at)}</span></div><pre>{m.content || (busy && m.role === 'assistant' ? '思考中…' : '')}</pre></div></article>)}
+
+    <main className="oa-main">
+      <header className="oa-topbar">
+        {collapsed && <button className="oa-icon-btn" onClick={()=>setCollapsed(false)} title="展开侧栏"><Menu size={18}/></button>}
+        <div className="oa-title"><b>GenericAgent</b><span>{current ? shortTitle(current) : 'Chat'}</span></div>
+        <div className="oa-top-actions">
+          <button onClick={newSession}>新对话</button>
+          <button disabled={!sid} onClick={()=>deleteSession(sid)}><Trash2 size={15}/>删除</button>
+        </div>
+      </header>
+
+      {(err || notice) && <div className={`oa-banner ${err ? 'error' : ''}`}>{err || notice}</div>}
+
+      <section className="oa-thread">
+        {messages.length === 0 && <div className="oa-empty">
+          <div className="oa-mark"><Bot size={24}/></div>
+          <h1>我可以帮你管理 GenericAgent</h1>
+          <p>选择一个建议开始，或直接输入你的任务。</p>
+          <div className="oa-prompts">{examples.map(x => <button key={x} onClick={()=>setPrompt(x)}>{x}</button>)}</div>
+        </div>}
+        {messages.map(m => <article key={m.id} className={`oa-message ${m.role} ${m.error?'error':''}`}>
+          <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
+          <div className="oa-bubble">
+            <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}</div>
+            <div className="oa-content">{m.content || (busy && m.role === 'assistant' ? '正在思考…' : '')}</div>
+          </div>
+        </article>)}
         <div ref={endRef}/>
       </section>
-      <footer className="composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)) send() }} placeholder="输入任务，Ctrl/⌘ + Enter 发送"/><button disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/>{busy?'执行中':'发送'}</button></footer>
+
+      <footer className="oa-composer-wrap">
+        <div className="oa-composer">
+          <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)) send() }} placeholder="询问或安排一个任务…" rows={1}/>
+          <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
+        </div>
+        <p>GenericAgent 可能会执行本地操作。发送前请确认任务意图清晰。</p>
+      </footer>
     </main>
   </div>
 }
