@@ -11,6 +11,27 @@ const fmtTime = (v) => {
   if (!v) return ''
   try { return new Date(v * 1000).toLocaleString() } catch { return '' }
 }
+const fmtTimelineDate = (v) => {
+  if (!v) return '今天'
+  try {
+    const d = new Date(v * 1000)
+    const now = new Date()
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const diff = Math.round((today - day) / 86400000)
+    if (diff === 0) return '今天'
+    if (diff === 1) return '昨天'
+    return d.toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' })
+  } catch { return '' }
+}
+const timelineKey = (v) => {
+  if (!v) return 'today'
+  try {
+    const d = new Date(v * 1000)
+    return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`
+  } catch { return 'unknown' }
+}
+const isNearBottom = (el, gap = 96) => !el || (el.scrollHeight - el.scrollTop - el.clientHeight) <= gap
 const shortTitle = (s) => s?.title || '新会话'
 const modelLabel = (m) => m?.label || [m?.name || m?.var_name || `模型 ${m?.index || ''}`, m?.model].filter(Boolean).join(' · ')
 
@@ -333,6 +354,9 @@ export default function ChatApp() {
   const [draftTitle, setDraftTitle] = useState('')
   const [attachments, setAttachments] = useState([])
   const [dragging, setDragging] = useState(false)
+  const [autoFollow, setAutoFollow] = useState(true)
+  const [showFollow, setShowFollow] = useState(false)
+  const threadRef = useRef(null)
   const endRef = useRef(null)
   const fileRef = useRef(null)
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
@@ -440,7 +464,7 @@ export default function ChatApp() {
         id = d.id; setSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
       }
       const clientUserID = `u-${Date.now()}`
-      setPrompt(''); setAttachments([])
+      setPrompt(''); setAttachments([]); setAutoFollow(true); setShowFollow(false)
       const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
       const optimistic = { id:clientUserID, role:'user', content:(text || '请分析这张图片') + fileNote, files, created_at:Math.floor(Date.now()/1000) }
       const pending = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }
@@ -470,7 +494,32 @@ export default function ChatApp() {
   }
 
   useEffect(() => { loadSessions().catch(e=>setErr(e.message)) }, [])
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth', block:'end' }) }, [messages, busy])
+
+  const scrollToThreadEnd = (behavior = 'smooth') => endRef.current?.scrollIntoView({ behavior, block:'end' })
+  const resumeFollow = () => {
+    setAutoFollow(true)
+    setShowFollow(false)
+    scrollToThreadEnd('smooth')
+  }
+  const updateFollowFromScroll = () => {
+    const near = isNearBottom(threadRef.current)
+    setAutoFollow(near)
+    setShowFollow(!near)
+  }
+  const breakFollow = () => {
+    if (autoFollow && !isNearBottom(threadRef.current, 12)) {
+      setAutoFollow(false)
+      setShowFollow(true)
+    }
+  }
+
+  useEffect(() => {
+    if (autoFollow) {
+      scrollToThreadEnd('smooth')
+    } else if (!isNearBottom(threadRef.current)) {
+      setShowFollow(true)
+    }
+  }, [messages, busy, autoFollow])
 
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
   const selectedModelNo = activeModel?.index ?? llmNo
@@ -515,23 +564,31 @@ export default function ChatApp() {
 
       {(err || notice) && <div className={`oa-banner ${err ? 'error' : ''}`}>{err || notice}</div>}
 
-      <section className="oa-thread">
+      <section className="oa-thread" ref={threadRef} onScroll={updateFollowFromScroll} onWheel={e=>{ if (e.deltaY < 0) breakFollow() }} onTouchMove={breakFollow}>
         {messages.length === 0 && <div className="oa-empty">
           <div className="oa-hero-badge"><Sparkles size={16}/>Agent cockpit</div>
           <h1>今天想让 GenericAgent 做什么？</h1>
           <p>支持 Markdown、代码块复制、模型切换、会话重命名与删除。</p>
           <div className="oa-prompts">{examples.map(([k, x]) => <button className="oa-prompt" key={x} onClick={()=>setPrompt(x)}><b>{k}</b><span>{x}</span></button>)}</div>
         </div>}
-        {messages.map(m => <article key={m.id} className={`oa-message ${m.role} ${m.error?'error':''}`}>
-          <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
-          <div className="oa-bubble">
-            <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
-            {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
-            {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} /> : <MarkdownBlock text={m.content} />}
-          </div>
-        </article>)}
+        {messages.flatMap((m, i) => {
+          const day = timelineKey(m.created_at)
+          const prevDay = i > 0 ? timelineKey(messages[i - 1]?.created_at) : ''
+          const nodes = []
+          if (i === 0 || day !== prevDay) nodes.push(<div key={`tl-${day}-${i}`} className="oa-timeline"><span>{fmtTimelineDate(m.created_at)}</span></div>)
+          nodes.push(<article key={m.id} className={`oa-message ${m.role} ${m.error?'error':''}`}>
+            <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
+            <div className="oa-bubble">
+              <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
+              {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
+              {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} /> : <MarkdownBlock text={m.content} />}
+            </div>
+          </article>)
+          return nodes
+        })}
         <div ref={endRef}/>
       </section>
+      {showFollow && <button className="oa-follow-btn" type="button" onClick={resumeFollow}><ChevronDown size={16}/>继续跟随</button>}
 
       <footer className="oa-composer-wrap">
         <div className={`oa-composer ${dragging ? 'is-dragging' : ''}`} onDragOver={e=>{e.preventDefault(); setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={onDropImages}>
