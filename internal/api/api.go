@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,6 +59,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/schedule/toggle", s.scheduleToggle)
 	mux.HandleFunc("/api/schedule/artifact", s.scheduleArtifact)
 	mux.HandleFunc("/api/config", s.configHandler)
+	mux.HandleFunc("/api/setup/env", s.setupEnv)
+	mux.HandleFunc("/api/setup/browse", s.setupBrowse)
 	mux.HandleFunc("/api/setup/validate", s.setupValidate)
 	mux.HandleFunc("/api/setup/install", s.setupInstall)
 	mux.HandleFunc("/api/services", s.services)
@@ -335,6 +338,89 @@ type setupPathReq struct {
 	Path string `json:"path"`
 }
 
+type setupToolStatus struct {
+	Name    string `json:"name"`
+	OK      bool   `json:"ok"`
+	Path    string `json:"path,omitempty"`
+	Version string `json:"version,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+func (s *Server) setupEnv(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok":      toolOK("git") && toolOK("python"),
+		"tools":   []setupToolStatus{checkTool("git", "--version"), checkTool("python", "--version")},
+		"checked": time.Now().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) setupBrowse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req setupPathReq
+	_ = decode(r, &req)
+	start := strings.TrimSpace(req.Path)
+	if start == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			start = home
+		}
+	}
+	selected, err := chooseDirectory(start)
+	if err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	if selected == "" {
+		writeJSON(w, map[string]interface{}{"ok": false, "cancelled": true})
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "path": selected})
+}
+
+func toolOK(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func checkTool(name string, args ...string) setupToolStatus {
+	st := setupToolStatus{Name: name}
+	path, err := exec.LookPath(name)
+	if err != nil {
+		st.Error = err.Error()
+		return st
+	}
+	st.OK = true
+	st.Path = path
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	if err != nil && strings.TrimSpace(string(out)) == "" {
+		st.Error = err.Error()
+	}
+	st.Version = strings.TrimSpace(string(out))
+	return st
+}
+
+func chooseDirectory(start string) (string, error) {
+	if runtime.GOOS == "windows" {
+		ps := `$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Select GenericAgent directory'; $d.ShowNewFolderButton = $true; if ($env:GA_ADMIN_BROWSE_START -and (Test-Path -LiteralPath $env:GA_ADMIN_BROWSE_START)) { $d.SelectedPath = $env:GA_ADMIN_BROWSE_START }; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.SelectedPath }`
+		cmd := exec.Command("powershell", "-NoProfile", "-STA", "-Command", ps)
+		cmd.Env = append(os.Environ(), "GA_ADMIN_BROWSE_START="+start)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("directory picker failed: %s", strings.TrimSpace(string(out)))
+		}
+		return strings.TrimSpace(string(out)), nil
+	}
+	return "", fmt.Errorf("directory picker is only supported on Windows in this build; please paste the path manually")
+}
+
 func (s *Server) setupValidate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		bad(w, 405, "method not allowed")
@@ -395,7 +481,7 @@ func (s *Server) setupInstall(w http.ResponseWriter, r *http.Request) {
 		bad(w, 500, err.Error())
 		return
 	}
-	cmd := exec.Command("git", "clone", "https://github.com/Fwind43/GenericAgent.git", abs)
+	cmd := exec.Command("git", "clone", "https://github.com/lsdefine/GenericAgent", abs)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		bad(w, 500, strings.TrimSpace(string(out))+": "+err.Error())
