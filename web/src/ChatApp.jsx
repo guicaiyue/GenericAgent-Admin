@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileText, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -34,6 +34,30 @@ function CopyButton({ text, compact = false }) {
   return <button className={compact ? 'oa-mini-copy' : 'oa-copy'} onClick={copy} title="复制">
     {ok ? <Check size={14}/> : <Copy size={14}/>}<span>{ok ? '已复制' : '复制'}</span>
   </button>
+}
+
+function FileAttachment({ path }) {
+  const clean = String(path || '').trim()
+  const name = clean.split(/[\\/]/).filter(Boolean).pop() || clean || '文件'
+  return <span className="oa-file-card">
+    <span className="oa-file-icon"><FileText size={18}/></span>
+    <span className="oa-file-meta"><b>{name}</b><em>{clean}</em></span>
+    <CopyButton text={clean} compact />
+  </span>
+}
+
+function InlineRichText({ text = '' }) {
+  const src = String(text || '')
+  const re = /\[FILE:([^\]]+)\]/g
+  const nodes = []
+  let last = 0, m, n = 0
+  while ((m = re.exec(src)) !== null) {
+    if (m.index > last) nodes.push(<span key={`t${n++}`} dangerouslySetInnerHTML={{__html:inlineMarkdown(src.slice(last, m.index))}} />)
+    nodes.push(<FileAttachment key={`f${n++}`} path={m[1]} />)
+    last = re.lastIndex
+  }
+  if (last < src.length) nodes.push(<span key={`t${n++}`} dangerouslySetInnerHTML={{__html:inlineMarkdown(src.slice(last))}} />)
+  return <>{nodes}</>
 }
 
 const splitMarkdownParts = (text = '') => {
@@ -167,15 +191,15 @@ function ToolCallBlock({ call }) {
 function renderTextBlock(b, i) {
   const lines = b.split('\n')
   if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
-    return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j} dangerouslySetInnerHTML={{__html:inlineMarkdown(x.replace(/^\s*([-*]|\d+\.)\s+/, ''))}} />)}</ul>
+    return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j}><InlineRichText text={x.replace(/^\s*([-*]|\d+\.)\s+/, '')} /></li>)}</ul>
   }
   if (/^#{1,3}\s+/.test(b.trim())) {
     const level = Math.min(3, b.trim().match(/^#+/)[0].length)
     const body = b.trim().replace(/^#{1,3}\s+/, '')
     const Tag = `h${level + 2}`
-    return <Tag key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(body)}} />
+    return <Tag key={i}><InlineRichText text={body} /></Tag>
   }
-  return <p key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(b)}} />
+  return <p key={i}><InlineRichText text={b} /></p>
 }
 
 function TextMarkdown({ text = '' }) {

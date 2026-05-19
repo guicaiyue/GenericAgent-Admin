@@ -1010,3 +1010,56 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-tool-result>span{color:#08785f}
 .oa-tool-args pre,.oa-tool-result pre{margin:0;padding:10px 12px;border-radius:10px;background:#f6f6f6;border:1px solid #ececec;white-space:pre-wrap;word-break:break-word;color:#1f2937;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .oa-tool-result pre{background:#f7fbf9;border-color:#dcefe8;color:#164e3f}
+
+/* Chat file attachment marker: [FILE:C:\\path\\to\\file] */
+.oa-file-card{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  max-width:min(100%,640px);
+  margin:4px 2px;
+  padding:9px 10px;
+  border:1px solid #dedede;
+  border-radius:12px;
+  background:#fff;
+  vertical-align:middle;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.oa-file-icon{
+  width:32px;
+  height:32px;
+  border-radius:9px;
+  background:#f1f1f1;
+  color:#444;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+}
+.oa-file-meta{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  line-height:1.25;
+}
+.oa-file-meta b{
+  max-width:430px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:13px;
+  font-weight:600;
+  color:#202123;
+}
+.oa-file-meta em{
+  max-width:430px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  font-style:normal;
+  color:#6f6f6f;
+}
+.oa-file-card .oa-mini-copy{
+  flex:0 0 auto;
+}
