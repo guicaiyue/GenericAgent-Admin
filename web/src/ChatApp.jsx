@@ -398,7 +398,7 @@ export default function ChatApp() {
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
   const selectedModelNo = activeModel?.index ?? llmNo
 
-  return <div className="oa-chat">
+  return <div className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
     <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="oa-side-head">
         <div className="oa-logo"><Bot size={18}/><span>GenericAgent</span></div>

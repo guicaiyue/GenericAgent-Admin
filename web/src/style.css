@@ -653,38 +653,39 @@ pre, code { background:#f7f7f7; color:#111; }
   color:#0d0d0d;
   overflow:hidden;
 }
-.oa-sidebar {
+ .oa-sidebar {
+  width:260px;
   background:#f9f9f9 !important;
   border-right:1px solid #ededed;
   padding:8px;
+  gap:8px;
   box-shadow:none;
 }
-.oa-side-head { height:52px; padding:4px 2px 8px; }
-.oa-brandmark { background:#fff; color:#111; border:1px solid #e7e7e7; box-shadow:none; }
-.oa-side-actions { gap:2px; margin-bottom:10px; }
-.oa-side-actions button, .oa-session {
-  min-height:36px;
-  border:0 !important;
-  border-radius:10px;
-  background:transparent;
-  color:#333;
-  box-shadow:none !important;
-  font-weight:400;
-}
-.oa-side-actions button:hover, .oa-session:hover, .oa-session.active { background:#ececec !important; }
-.oa-section-label { color:#6b6b6b; font-size:12px; font-weight:600; padding:10px 10px 6px; }
-.oa-session-title { font-size:14px; font-weight:400; color:#222; }
-.oa-session-meta { color:#8a8a8a; font-size:12px; }
-.oa-side-foot { border-top:0; padding:8px 0 0; }
+.oa-sidebar::before,.oa-main::before{display:none}
+.oa-side-head{height:48px;padding:0 4px;display:flex;align-items:center;gap:8px}
+.oa-logo{min-width:0;display:flex;align-items:center;gap:9px;color:#111;font-size:14px;font-weight:600;padding:0 8px;flex:1}
+.oa-logo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oa-icon-btn{width:36px;height:36px;min-height:36px;border-radius:10px;color:#555;flex:0 0 auto}
+.oa-icon-btn:hover,.oa-sidebar-foot button:hover{background:#ececec}
+.oa-new-chat{min-height:40px;border:0!important;border-radius:10px;background:transparent;color:#333;box-shadow:none!important;font-weight:500;justify-content:flex-start;padding:0 10px}
+.oa-new-chat:hover,.oa-session:hover,.oa-session-row.active .oa-session{background:#ececec!important;transform:none}
+.oa-session-list{gap:2px;padding-right:0}
+.oa-session-row{position:relative;border-radius:10px}
+.oa-session{min-height:46px;border:0!important;border-radius:10px;background:transparent;color:#333;box-shadow:none!important;font-weight:400;padding:8px 34px 8px 10px}
+.oa-session span{font-size:14px;font-weight:400;color:#222}
+.oa-session small{color:#8a8a8a;font-size:11.5px;display:flex;align-items:center;gap:4px}
+.oa-session-more{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#666;display:none;align-items:center;justify-content:center;cursor:pointer}
+.oa-session-row:hover .oa-session-more,.oa-session-row.active .oa-session-more{display:flex}
+.oa-session-more:hover{background:#ddd;color:#111}
+.oa-session-menu{right:4px;top:34px}
+.oa-empty-list{margin:14px 10px;color:#8a8a8a;font-size:13px}
+.oa-sidebar-foot{border-top:0;padding:6px 0 0;display:grid;gap:2px}
+.oa-sidebar-foot button{min-height:36px;border:0;border-radius:10px;background:transparent;color:#555;justify-content:flex-start;padding:0 10px;box-shadow:none}
 .oa-root { background:#fff; border:1px solid #e8e8e8; border-radius:10px; }
-.oa-main { background:#fff; }
-.oa-topbar {
-  height:56px;
-  padding:0 16px;
-  border-bottom:0;
-  background:#fff;
-  box-shadow:none;
-}
+.oa-main{background:#fff;grid-template-rows:56px minmax(0,1fr) auto}
+.oa-topbar{height:56px;padding:0 16px;border-bottom:0;background:#fff;box-shadow:none;display:flex;align-items:center;gap:10px}
+.oa-title b{font-size:18px;font-weight:600;letter-spacing:-.02em;color:#111}
+.oa-title span{display:none}
 .oa-model { font-size:18px; font-weight:600; letter-spacing:0; border-radius:10px; padding:6px 10px; }
 .oa-model:hover { background:#f3f3f3; }
 .oa-thread { background:#fff; padding:0 0 132px; }
