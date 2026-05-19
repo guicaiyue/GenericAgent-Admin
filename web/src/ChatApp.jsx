@@ -286,7 +286,7 @@ function renderTextBlock(b, i) {
   return <p key={i}><InlineRichText text={b} /></p>
 }
 
-function TextMarkdown({ text = '' }) {
+function TextMarkdown({ text = '', onAskReply }) {
   const blocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
   const nodes = []
   for (let i = 0; i < blocks.length; i++) {
@@ -299,13 +299,13 @@ function TextMarkdown({ text = '' }) {
         toolCall.args = [toolCall.args, args].filter(Boolean).join('\n\n')
         j += 1
       }
-      nodes.push(<ToolCallBlock key={i} call={toolCall} />)
+      nodes.push(<ToolCallBlock key={i} call={toolCall} onAskReply={onAskReply} />)
       i = j - 1
       continue
     }
     const standaloneArgs = parseToolArgsBlock(blocks[i])
     if (standaloneArgs !== null) {
-      nodes.push(<ToolCallBlock key={i} call={{ name: 'unknown', args: standaloneArgs }} />)
+      nodes.push(<ToolCallBlock key={i} call={{ name: 'unknown', args: standaloneArgs }} onAskReply={onAskReply} />)
       continue
     }
     nodes.push(renderTextBlock(blocks[i], i))
@@ -374,7 +374,7 @@ function AssistantContent({ content, pending, onAskReply }) {
       })}
       {lastRun && <section className="oa-turn-current" key={`last-${lastRun.turn}`}>
         <div className="oa-turn-current-head"><span>Turn {lastRun.turn}</span><b>{lastRun.title || '正在执行'}</b><em>{pending ? '实时输出中' : '最新一轮'}</em></div>
-        {lastRun.body ? <MarkdownBlock text={lastRun.body} /> : <p className="oa-turn-empty">正在等待该轮输出…</p>}
+        {lastRun.body ? <MarkdownBlock text={lastRun.body} onAskReply={onAskReply} /> : <p className="oa-turn-empty">正在等待该轮输出…</p>}
       </section>}
     </div>}
     {(parsed.body || !parsed.runs.length) && <div className={parsed.runs.length ? 'oa-final-answer' : ''}>
@@ -572,11 +572,15 @@ export default function ChatApp() {
     const value = String(text || '')
     setPrompt(value)
     setNotice('已填入快捷回复，确认后可发送')
-    requestAnimationFrame(() => {
-      promptRef.current?.focus?.()
+    const focusPrompt = () => {
+      const el = promptRef.current
+      if (!el) return
+      el.focus()
       const len = value.length
-      promptRef.current?.setSelectionRange?.(len, len)
-    })
+      el.setSelectionRange?.(len, len)
+    }
+    requestAnimationFrame(focusPrompt)
+    setTimeout(focusPrompt, 0)
   }
 
   const send = async () => {
