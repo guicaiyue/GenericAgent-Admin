@@ -389,6 +389,7 @@ export default function ChatApp() {
   const [messages, setMessages] = useState([])
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
+  const [streamingSid, setStreamingSid] = useState('')
   const [err, setErr] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState('')
@@ -438,7 +439,7 @@ export default function ChatApp() {
   }
 
   const cancelRun = async (id = sid) => {
-    if (!id || !busy) return
+    if (!id) return
     try {
       streamAbortRef.current?.abort?.()
       await api(`/api/chat/cancel/${id}`, { method:'POST', body:'{}' })
@@ -446,7 +447,7 @@ export default function ChatApp() {
       setSessions(xs => xs.map(s => s.id === id ? { ...s, running:false } : s))
       setNotice('已中止当前执行')
     } catch (e) { setErr(e.message || String(e)) }
-    finally { setBusy(false); if (id) loadSessions(id).catch(()=>{}) }
+    finally { setBusy(false); setStreamingSid(''); if (id) loadSessions(id).catch(()=>{}) }
   }
 
   const attachRunningStream = async (id) => {
@@ -455,7 +456,7 @@ export default function ChatApp() {
     const ctrl = new AbortController()
     streamAbortRef.current = ctrl
     const pendingId = `resume-${Date.now()}`
-    setBusy(true); setAutoFollow(true); setShowFollow(false)
+    setBusy(true); setStreamingSid(id); setAutoFollow(true); setShowFollow(false)
     setMessages(xs => xs.some(m => m.role === 'assistant' && !m.content) ? xs : [...xs, { id:pendingId, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }])
     try {
       const res = await fetch(`/api/chat/stream/${id}`, { signal: ctrl.signal })
@@ -466,7 +467,7 @@ export default function ChatApp() {
     } catch (e) {
       if (e.name !== 'AbortError') setErr(e.message || String(e))
     } finally {
-      if (streamAbortRef.current === ctrl) { streamAbortRef.current = null; setBusy(false) }
+      if (streamAbortRef.current === ctrl) { streamAbortRef.current = null; setBusy(false); setStreamingSid('') }
     }
   }
 
@@ -477,7 +478,14 @@ export default function ChatApp() {
     const nextNo = st.settings?.llm_no ?? st.llm_no ?? nextLlms[0]?.index ?? 0
     setLlms(nextLlms)
     setLlmNo(nextLlms.some(m => m.index === nextNo) ? nextNo : (nextLlms[0]?.index ?? 0))
-    if (st.running) attachRunningStream(id)
+    if (st.running) {
+      attachRunningStream(id)
+    } else if (streamingSid && streamingSid !== id) {
+      streamAbortRef.current?.abort?.()
+      streamAbortRef.current = null
+      setBusy(false)
+      setStreamingSid('')
+    }
   }
 
   const openSession = async (id, refreshList = true) => {
@@ -583,14 +591,15 @@ export default function ChatApp() {
     const text = prompt.trim()
     const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
     if ((!text && !files.length) || busy) return
-    setBusy(true); setErr(''); setNotice('')
+    setBusy(true); setStreamingSid(sid || 'new'); setErr(''); setNotice('')
     let id = sid
     try {
       if (!id) {
         const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-        id = d.id; setSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
+        id = d.id; setSid(id); setStreamingSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
       }
       const clientUserID = `u-${Date.now()}`
+      setStreamingSid(id)
       setSessions(xs => xs.map(s => s.id === id ? { ...s, running:true } : s))
       setPrompt(''); setAttachments([]); setAutoFollow(true); setShowFollow(false)
       const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
@@ -605,6 +614,7 @@ export default function ChatApp() {
     } finally {
       if (id) await loadSessions(id).catch(()=>{})
       setBusy(false)
+      setStreamingSid('')
     }
   }
 
@@ -638,6 +648,7 @@ export default function ChatApp() {
 
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
   const selectedModelNo = activeModel?.index ?? llmNo
+  const isCurrentRunning = busy && streamingSid === sid
 
   return <div className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
     <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -704,7 +715,7 @@ export default function ChatApp() {
             <div className="oa-bubble">
               <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
               {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
-              {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} onAskReply={fillAskReply} /> : <MarkdownBlock text={m.content} />}
+              {m.role === 'assistant' ? <AssistantContent content={m.content} pending={isCurrentRunning && !m.content} onAskReply={fillAskReply} /> : <MarkdownBlock text={m.content} />}
             </div>
           </article>)
           return nodes
@@ -727,7 +738,7 @@ export default function ChatApp() {
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
               {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
-            {busy ? <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="\u505c\u6b62\u751f\u6210"><Square size={14}/></button> : <button className="oa-send" disabled={!prompt.trim() && !attachments.length} onClick={send}><Send size={17}/></button>}
+            {isCurrentRunning ? <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="停止生成" aria-label="停止生成"><Square size={14}/></button> : <button className="oa-send" type="button" disabled={!prompt.trim() && !attachments.length} onClick={send} title="发送" aria-label="发送"><Send size={17}/></button>}
           </div>
         </div>
         <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制、图片粘贴/拖拽与模型切换</p>
