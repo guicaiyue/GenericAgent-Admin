@@ -518,6 +518,7 @@ export default function ChatApp() {
         id = d.id; setSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
       }
       const clientUserID = `u-${Date.now()}`
+      setSessions(xs => xs.map(s => s.id === id ? { ...s, running:true } : s))
       setPrompt(''); setAttachments([]); setAutoFollow(true); setShowFollow(false)
       const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
       const optimistic = { id:clientUserID, role:'user', content:(text || '请分析这张图片') + fileNote, files, created_at:Math.floor(Date.now()/1000) }
@@ -526,10 +527,12 @@ export default function ChatApp() {
       const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: llmNo }, client_user_id:clientUserID }) })
       if (!res.ok) throw new Error(await res.text())
       await readStream(res, pending.id, clientUserID)
-      await loadSessions(id)
     } catch (e) {
       setErr(e.message || String(e))
-    } finally { setBusy(false) }
+    } finally {
+      if (id) await loadSessions(id).catch(()=>{})
+      setBusy(false)
+    }
   }
 
   useEffect(() => { loadSessions().catch(e=>setErr(e.message)); return () => streamAbortRef.current?.abort?.() }, [])
@@ -571,12 +574,12 @@ export default function ChatApp() {
       </div>
       <button className="oa-new-chat" onClick={newSession}><MessageSquarePlus size={16}/><span>新对话</span></button>
       <div className="oa-session-list">
-        {sessions.map(s => <div key={s.id} className={`oa-session-row ${s.id===sid?'active':''}`}>
+        {sessions.map(s => <div key={s.id} className={`oa-session-row ${s.id===sid?'active':''} ${s.running?'is-running':''}`}>
           {editing === s.id ? <div className="oa-rename">
             <input value={draftTitle} autoFocus onChange={e=>setDraftTitle(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') saveRename(s.id); if(e.key==='Escape') setEditing('') }}/>
             <button onClick={()=>saveRename(s.id)}><Check size={14}/></button><button onClick={()=>setEditing('')}><X size={14}/></button>
           </div> : <button className="oa-session" onClick={()=>openSession(s.id)} title={shortTitle(s)}>
-            <span title={shortTitle(s)}>{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条</small>
+            <span title={shortTitle(s)}>{s.running && <i className="oa-session-running-dot" aria-hidden="true"/>}{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条{s.running && <em className="oa-session-running-label">运行中</em>}</small>
           </button>}
           {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{e.stopPropagation(); setMenuOpen(menuOpen === s.id ? '' : s.id)}} aria-label="会话操作"><MoreHorizontal size={16}/></button>}
           {menuOpen === s.id && <div className="oa-session-menu">
