@@ -381,9 +381,9 @@ header p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 760px; 
 .oa-brand-mark { width:38px; height:38px; border-radius:13px; display:grid; place-items:center; background:#171717; color:white; box-shadow:0 14px 30px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.18); }
 .oa-brand-row b { display:block; font-size:16px; letter-spacing:-.035em; }
 .oa-brand-row span { display:block; color:var(--oa-muted); font-size:12px; margin-top:2px; }
-.oa-icon-btn, .oa-new-chat, .oa-sidebar-foot button, .oa-top-actions button { border:0; border-radius:13px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; gap:8px; background:transparent; cursor:pointer; transition:background .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease; }
+.oa-icon-btn, .oa-new-chat, .oa-sidebar-foot button { border:0; border-radius:13px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; gap:8px; background:transparent; cursor:pointer; transition:background .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease; }
 .oa-icon-btn { margin-left:auto; width:36px; color:#5f5a52; }
-.oa-icon-btn:hover, .oa-sidebar-foot button:hover, .oa-top-actions button:hover { background:rgba(255,255,255,.68); }
+.oa-icon-btn:hover, .oa-sidebar-foot button:hover { background:rgba(255,255,255,.68); }
 .oa-new-chat { width:100%; min-height:46px; justify-content:flex-start; padding:0 14px; background:#171717; color:white; font-weight:650; letter-spacing:-.01em; box-shadow:0 14px 36px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.16); }
 .oa-new-chat:hover { transform:translateY(-1px); background:#000; }
 .oa-section-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#938d84; padding:2px 10px; font-weight:720; }
@@ -403,9 +403,6 @@ header p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 760px; 
 .oa-title { min-width:0; }
 .oa-title b { display:block; letter-spacing:-.025em; }
 .oa-title span { display:block; color:var(--oa-muted); font-size:12px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.oa-top-actions { margin-left:auto; display:flex; gap:8px; align-items:center; }
-.oa-top-actions button { padding:0 12px; color:#4d4942; }
-.oa-top-actions button:disabled { opacity:.42; cursor:not-allowed; }
 .oa-banner { margin:12px auto 0; width:min(860px, calc(100% - 48px)); padding:10px 12px; border-radius:14px; font-size:13px; background:#ecfdf5; border:1px solid rgba(16,163,127,.18); color:#08745c; }
 .oa-banner.error { background:#fff1f2; border-color:rgba(180,35,58,.18); color:#a11936; }
 .oa-thread { overflow:auto; min-height:0; padding:0 0 28px; }
@@ -432,9 +429,10 @@ header p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 760px; 
 .oa-message.user .oa-content { color:#fff; line-height:1.62; }
 .oa-message.error .oa-content { color:#a11936; }
 .oa-composer-wrap { width:min(860px, calc(100% - 48px)); justify-self:center; padding:12px 0 20px; background:linear-gradient(to top, rgba(251,250,247,.98) 72%, rgba(251,250,247,0)); }
-.oa-composer { min-height:62px; display:grid; grid-template-columns:minmax(0,1fr) 42px; align-items:end; gap:10px; border:1px solid rgba(0,0,0,.12); border-radius:30px; padding:9px 10px 9px 21px; background:rgba(255,255,255,.88); box-shadow:0 22px 64px rgba(0,0,0,.13), 0 2px 0 rgba(255,255,255,.7) inset; backdrop-filter:blur(18px); transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.oa-composer { min-height:82px; display:grid; grid-template-columns:1fr; gap:8px; border:1px solid rgba(0,0,0,.12); border-radius:30px; padding:10px 10px 10px 18px; background:rgba(255,255,255,.88); box-shadow:0 22px 64px rgba(0,0,0,.13), 0 2px 0 rgba(255,255,255,.7) inset; backdrop-filter:blur(18px); transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
 .oa-composer:focus-within { border-color:rgba(0,0,0,.22); box-shadow:0 26px 76px rgba(0,0,0,.16), 0 2px 0 rgba(255,255,255,.8) inset; transform:translateY(-1px); }
-.oa-composer textarea { border:0; outline:0; resize:none; min-height:40px; max-height:170px; padding:10px 0; font:inherit; font-size:15.5px; line-height:1.45; background:transparent; color:var(--oa-text); box-shadow:none; }
+.oa-composer textarea { border:0; outline:0; resize:none; min-height:34px; max-height:170px; padding:8px 6px 0 0; font:inherit; font-size:15.5px; line-height:1.45; background:transparent; color:var(--oa-text); box-shadow:none; }
+.oa-composer-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
 .oa-composer textarea::placeholder { color:#958f86; }
 .oa-send { width:42px; height:42px; border:0; border-radius:50%; display:grid; place-items:center; cursor:pointer; background:#171717; color:#fff; box-shadow:0 10px 25px rgba(0,0,0,.18); transition:transform .15s ease, opacity .15s ease; }
 .oa-send:hover:not(:disabled) { transform:translateY(-1px); }
@@ -457,7 +455,6 @@ header p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 760px; 
   .oa-prompts { grid-template-columns:1fr; }
   .oa-empty h1 { font-size:40px; }
   .oa-topbar { padding:0 14px; }
-  .oa-top-actions button:first-child { display:none; }
   .oa-message { grid-template-columns:34px minmax(0,1fr); gap:12px; width:min(100% - 28px, 820px); }
   .oa-message.user .oa-bubble { max-width:88%; }
   .oa-composer-wrap { width:calc(100% - 24px); }
@@ -690,7 +687,6 @@ pre, code { background:#f7f7f7; color:#111; }
 }
 .oa-model { font-size:18px; font-weight:600; letter-spacing:0; border-radius:10px; padding:6px 10px; }
 .oa-model:hover { background:#f3f3f3; }
-.oa-top-actions button { border:0; background:transparent; border-radius:999px; min-width:36px; }
 .oa-thread { background:#fff; padding:0 0 132px; }
 .oa-empty {
   width:min(100% - 32px, 768px);
@@ -929,11 +925,8 @@ pre, code { background:#f7f7f7; color:#111; }
 }
 
 /* /chat ChatGPT parity: markdown, code copy, model picker, session actions */
-.oa-top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-.oa-top-actions>button{height:36px;border:1px solid #e5e5e5;border-radius:10px;background:#fff;color:#3f3f46;display:inline-flex;align-items:center;gap:7px;padding:0 12px;font-size:13px;cursor:pointer}
-.oa-top-actions>button:hover{background:#f7f7f7}
-.oa-top-actions>button:disabled{opacity:.45;cursor:not-allowed}
-.oa-model-select{height:38px;min-width:220px;display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;padding:0 10px;color:#565656;position:relative}
+.oa-model-select{height:34px;min-width:220px;display:flex;align-items:center;gap:8px;border:1px solid #e5e5e5;border-radius:999px;background:#fff;padding:0 10px;color:#565656;position:relative}
+.oa-composer-model{min-width:0;max-width:min(360px, calc(100% - 56px));background:#f9f9f9}
 .oa-model-select span{font-size:12px;color:#8a8a8a;white-space:nowrap}
 .oa-model-select select{appearance:none;border:0;outline:0;background:transparent;color:#222;font-size:13px;max-width:250px;padding-right:18px;cursor:pointer}
 .oa-model-select svg{position:absolute;right:8px;pointer-events:none;color:#777}
@@ -974,7 +967,7 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-run-list span em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:560px;display:inline-block;vertical-align:bottom}
 .oa-empty p{display:block;color:#777;margin:-16px 0 22px;font-size:14px}
 .oa-hero-badge{display:inline-flex;align-items:center;gap:7px;margin-bottom:18px;padding:7px 11px;border:1px solid #e7e7e7;border-radius:999px;background:#fff;color:#666;font-size:13px}
-@media (max-width: 860px){.oa-model-select{min-width:160px}.oa-model-select select{max-width:150px}.oa-top-actions{gap:6px}.oa-top-actions>button{padding:0 9px}.oa-meta .oa-mini-copy{opacity:1}}
+@media (max-width: 860px){.oa-model-select{min-width:160px}.oa-model-select select{max-width:150px}.oa-composer-model{max-width:calc(100% - 52px)}.oa-meta .oa-mini-copy{opacity:1}}
 
 
 /* Agent turn cards: intermediate turns are collapsible; latest turn streams inline without a box */

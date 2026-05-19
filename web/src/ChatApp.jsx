@@ -428,13 +428,6 @@ export default function ChatApp() {
       <header className="oa-topbar">
         {collapsed && <button className="oa-icon-btn" onClick={()=>setCollapsed(false)} title="展开侧栏"><Menu size={18}/></button>}
         <div className="oa-title"><b>{current ? shortTitle(current) : '新对话'}</b><span>ChatGPT-style workspace for GenericAgent</span></div>
-        <div className="oa-top-actions">
-          <label className="oa-model-select"><span>{activeModel ? '模型' : '默认模型'}</span><select value={llmNo} onChange={e=>saveModel(Number(e.target.value))}>
-            <option value={0}>自动 / 默认</option>{llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>)}
-          </select><ChevronDown size={14}/></label>
-          <button onClick={newSession}>新对话</button>
-          <button disabled={!sid} onClick={()=>deleteSession(sid)}><Trash2 size={15}/>删除</button>
-        </div>
       </header>
 
       {(err || notice) && <div className={`oa-banner ${err ? 'error' : ''}`}>{err || notice}</div>}
@@ -459,9 +452,14 @@ export default function ChatApp() {
       <footer className="oa-composer-wrap">
         <div className="oa-composer">
           <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息…" rows={1}/>
-          <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
+          <div className="oa-composer-bar">
+            <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '默认模型'}</span><select value={llmNo} onChange={e=>saveModel(Number(e.target.value))}>
+              <option value={0}>自动 / 默认</option>{llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>)}
+            </select><ChevronDown size={14}/></label>
+            <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
+          </div>
         </div>
-        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown 与代码块复制</p>
+        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制与模型切换</p>
       </footer>
     </main>
   </div>
