@@ -429,7 +429,10 @@ export default function ChatApp() {
 
     <main className="oa-main">
       <header className="oa-topbar">
-        {collapsed && <button className="oa-icon-btn" onClick={()=>setCollapsed(false)} title="展开侧栏"><Menu size={18}/></button>}
+        {collapsed && <div className="oa-collapsed-actions">
+          <button className="oa-icon-btn oa-sidebar-toggle" onClick={()=>setCollapsed(false)} title="展开侧栏" aria-label="展开侧栏"><Menu size={18}/></button>
+          <button className="oa-icon-btn oa-collapsed-new" onClick={newSession} title="新对话" aria-label="新对话"><MessageSquarePlus size={18}/></button>
+        </div>}
         <div className="oa-title"><b>{current ? shortTitle(current) : '新对话'}</b><span>ChatGPT-style workspace for GenericAgent</span></div>
       </header>
 

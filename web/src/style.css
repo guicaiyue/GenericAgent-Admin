@@ -652,7 +652,12 @@ pre, code { background:#f7f7f7; color:#111; }
   background:#fff;
   color:#0d0d0d;
   overflow:hidden;
+  transition:grid-template-columns .24s cubic-bezier(.4,0,.2,1);
 }
+.oa-chat.is-collapsed { grid-template-columns:0 minmax(0,1fr); }
+.oa-chat.is-collapsed .oa-sidebar { transform:translateX(-100%); opacity:0; pointer-events:none; }
+.oa-chat.is-collapsed .oa-main { grid-column:2; }
+.oa-chat.is-collapsed .oa-title { margin-left:0; }
  .oa-sidebar {
   width:260px;
   background:#f9f9f9 !important;
@@ -660,6 +665,10 @@ pre, code { background:#f7f7f7; color:#111; }
   padding:8px;
   gap:8px;
   box-shadow:none;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .24s cubic-bezier(.4,0,.2,1), opacity .18s ease;
+  will-change:transform,opacity;
 }
 .oa-sidebar::before,.oa-main::before{display:none}
 .oa-side-head{height:48px;padding:0 4px;display:flex;align-items:center;gap:8px}
@@ -682,8 +691,12 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-sidebar-foot{border-top:0;padding:6px 0 0;display:grid;gap:2px}
 .oa-sidebar-foot button{min-height:36px;border:0;border-radius:10px;background:transparent;color:#555;justify-content:flex-start;padding:0 10px;box-shadow:none}
 .oa-root { background:#fff; border:1px solid #e8e8e8; border-radius:10px; }
-.oa-main{background:#fff;grid-template-rows:56px minmax(0,1fr) auto}
+.oa-main{background:#fff;grid-template-rows:56px minmax(0,1fr) auto;transition:margin .24s cubic-bezier(.4,0,.2,1)}
 .oa-topbar{height:56px;padding:0 16px;border-bottom:0;background:#fff;box-shadow:none;display:flex;align-items:center;gap:10px}
+.oa-collapsed-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-right:2px}
+.oa-collapsed-actions .oa-icon-btn{margin-left:0;color:#4f4f4f;background:transparent;box-shadow:none!important}
+.oa-collapsed-actions .oa-icon-btn:hover{background:#ececec}
+.oa-chat:not(.is-collapsed) .oa-collapsed-actions{display:none}
 .oa-title b{font-size:18px;font-weight:600;letter-spacing:-.02em;color:#111}
 .oa-title span{display:none}
 .oa-model { font-size:18px; font-weight:600; letter-spacing:0; border-radius:10px; padding:6px 10px; }
