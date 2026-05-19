@@ -69,24 +69,54 @@ func (m *Manager) python() string {
 
 func excluded(name string) bool {
 	switch name {
-	case "goal_mode.py", "chatapp_common.py", "tuiapp.py":
+	case "chatapp_common.py":
 		return true
 	}
 	return false
 }
 
+func existsFile(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+func (m *Manager) addIfExists(out *[]ServiceInfo, name, kind string, command []string) {
+	if len(command) == 0 {
+		return
+	}
+	if existsFile(filepath.Join(m.GARoot, name)) {
+		*out = append(*out, ServiceInfo{Name: filepath.ToSlash(name), Kind: kind, Command: command})
+	}
+}
+
 func (m *Manager) Discover() []ServiceInfo {
 	py := m.python()
 	var out []ServiceInfo
+
+	// GA native lifecycle entries. These are not under frontends/reflect but are essential to taking over GA.
+	m.addIfExists(&out, "hub.pyw", "core", []string{py, "hub.pyw"})
+	m.addIfExists(&out, "launch.py", "core", []string{py, "launch.py"})
+	m.addIfExists(&out, "agent_loop.py", "core", []string{py, "agent_loop.py"})
+	m.addIfExists(&out, filepath.Join("reflect", "scheduler.py"), "task", []string{py, filepath.ToSlash(filepath.Join("reflect", "scheduler.py"))})
+	m.addIfExists(&out, filepath.Join("reflect", "autonomous.py"), "reflect", []string{py, "agentmain.py", "--reflect", filepath.ToSlash(filepath.Join("reflect", "autonomous.py"))})
+	m.addIfExists(&out, filepath.Join("reflect", "goal_mode.py"), "reflect", []string{py, "agentmain.py", "--reflect", filepath.ToSlash(filepath.Join("reflect", "goal_mode.py"))})
+
 	reflectDir := filepath.Join(m.GARoot, "reflect")
 	if entries, err := os.ReadDir(reflectDir); err == nil {
 		sort.Slice(entries, func(i, j int) bool { return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name()) })
+		seen := map[string]bool{}
+		for _, s := range out {
+			seen[s.Name] = true
+		}
 		for _, e := range entries {
 			name := e.Name()
 			if e.IsDir() || !strings.HasSuffix(name, ".py") || strings.HasPrefix(name, "_") || excluded(name) {
 				continue
 			}
 			rel := filepath.ToSlash(filepath.Join("reflect", name))
+			if seen[rel] {
+				continue
+			}
 			out = append(out, ServiceInfo{Name: rel, Kind: "reflect", Command: []string{py, "agentmain.py", "--reflect", rel}})
 		}
 	}
@@ -95,12 +125,12 @@ func (m *Manager) Discover() []ServiceInfo {
 		sort.Slice(entries, func(i, j int) bool { return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name()) })
 		for _, e := range entries {
 			name := e.Name()
-			if e.IsDir() || !strings.HasSuffix(name, ".py") || !strings.Contains(name, "app") || strings.HasPrefix(name, "_") || excluded(name) {
+			if e.IsDir() || !strings.HasSuffix(name, ".py") || strings.HasPrefix(name, "_") || excluded(name) {
 				continue
 			}
 			rel := filepath.ToSlash(filepath.Join("frontends", name))
 			cmd := []string{py, rel}
-			if strings.Contains(name, "stapp") {
+			if strings.Contains(strings.ToLower(name), "stapp") {
 				cmd = []string{py, "-m", "streamlit", "run", rel, "--server.headless=true"}
 			}
 			out = append(out, ServiceInfo{Name: rel, Kind: "frontend", Command: cmd})
