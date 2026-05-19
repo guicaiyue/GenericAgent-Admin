@@ -98,7 +98,7 @@ export default function App() {
   const saveModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, overwrite_active:true }) }); setModelPreview(safeJson(d)); setMsg(t.hints.modelsSaved) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const patchProfile = (idx, patch) => setProfiles(ps => ps.map((p, i) => i === idx ? { ...p, ...patch } : p))
 
-  const nav = ['overview','control','files','tasks','memory','channels','autonomous','schedule','models','logs']
+  const nav = ['overview','chat','control','files','tasks','memory','channels','autonomous','schedule','models','logs']
 
   return <div className="app">
     <aside className="sidebar"><div className="brand"><Bot/><div><h1>{t.appName}</h1><p>{t.tagline}</p></div></div><div className="lang-switch"><Globe2 size={15}/>{t.language}<select value={lang} onChange={e=>setLang(e.target.value)}><option value="zh">中文</option><option value="en">English</option></select></div><div className="root-box"><label>{t.root}</label><div><input value={root} onChange={e=>setRoot(e.target.value)}/><button onClick={saveConfig}><Save size={14}/></button></div></div><nav>{nav.map(n => <button key={n} className={tab===n?'active':''} onClick={()=>setTab(n)}>{icon(n)}{t.nav[n]}</button>)}</nav><button className="refresh" onClick={load} disabled={busy}><RefreshCw size={15}/>{busy ? t.busy : t.refresh}</button>{msg && <div className="message">{msg}</div>}</aside>
