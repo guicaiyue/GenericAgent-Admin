@@ -170,7 +170,7 @@ const normalizeToolParts = (parts = []) => {
   return out
 }
 
-function MarkdownBlock({ text = '' }) {
+function MarkdownBlock({ text = '', onAskReply }) {
   const parts = normalizeToolParts(splitMarkdownParts(text))
   return <div className="oa-md">
     {parts.map((p, idx) => p.type === 'code'
@@ -179,7 +179,7 @@ function MarkdownBlock({ text = '' }) {
           <pre><code>{p.text}</code></pre>
         </div>
       : p.type === 'tool'
-        ? <ToolCallBlock key={idx} call={p.call} />
+        ? <ToolCallBlock key={idx} call={p.call} onAskReply={onAskReply} />
         : <TextMarkdown key={idx} text={p.text}/>) }
   </div>
 }
@@ -234,7 +234,7 @@ const getAskUserPayload = (call = {}) => {
   return fromResult
 }
 
-function AskUserPanel({ call }) {
+function AskUserPanel({ call, onReply }) {
   const ask = getAskUserPayload(call)
   const hasStructured = Boolean(ask.question || ask.candidates.length)
   return <div className="oa-ask-panel">
@@ -244,13 +244,13 @@ function AskUserPanel({ call }) {
     </div>
     {hasStructured ? <div className="oa-ask-body">
       {ask.question && <div className="oa-ask-question"><span>{'\u95ee\u9898'}</span><p>{ask.question}</p></div>}
-      {ask.candidates.length > 0 && <div className="oa-ask-options"><span>{'\u5feb\u6377\u56de\u590d'}</span><div>{ask.candidates.map((x,i)=><button type="button" key={`${x}-${i}`} onClick={(e)=>{e.stopPropagation(); navigator.clipboard?.writeText(x)}} title={'\u70b9\u51fb\u590d\u5236\u8be5\u56de\u590d'}>{x}</button>)}</div></div>}
+      {ask.candidates.length > 0 && <div className="oa-ask-options"><span>{'\u5feb\u6377\u56de\u590d'}</span><div>{ask.candidates.map((x,i)=><button type="button" key={`${x}-${i}`} onClick={(e)=>{e.stopPropagation(); onReply?.(x)}} title={'\u70b9\u51fb\u586b\u5165\u8f93\u5165\u6846'}>{x}</button>)}</div></div>}
     </div> : call.args && <div className="oa-tool-args"><span>{'\ud83d\udcac question'}</span><pre>{call.args}</pre></div>}
     {call.result && <div className="oa-tool-result oa-ask-result"><span>{'\ud83d\udce4 result'}</span><pre>{call.result}</pre></div>}
   </div>
 }
 
-function ToolCallBlock({ call }) {
+function ToolCallBlock({ call, onAskReply }) {
   const toolName = String(call.name || 'unknown').trim()
   const isAskUser = /(?:^|[._-])ask_user$/i.test(toolName)
   const [open, setOpen] = useState(isAskUser)
@@ -265,7 +265,7 @@ function ToolCallBlock({ call }) {
       {isAskUser && !resultStatus && <em>{askPayload?.candidates?.length ? `${askPayload.candidates.length} \u4e2a\u9009\u9879` : '\u7b49\u5f85\u56de\u590d'}</em>}
       <ChevronDown size={15} className="oa-tool-chevron" />
     </button>
-    {open && (isAskUser ? <AskUserPanel call={call} /> : <>
+    {open && (isAskUser ? <AskUserPanel call={call} onReply={onAskReply} /> : <>
       {call.args && <div className="oa-tool-args"><span>{'\ud83d\udce5 args'}</span><pre>{call.args}</pre></div>}
       {call.result && <div className="oa-tool-result"><span>{'\ud83d\udce4 result'}</span><pre>{call.result}</pre></div>}
     </>)}
@@ -344,7 +344,7 @@ const parseAssistantContent = (raw = '') => {
   return { runs: [], body: full.replace(FINAL_MARKER_RE, '').replace(/\n{3,}/g, '\n\n').trim() }
 }
 
-function AssistantContent({ content, pending }) {
+function AssistantContent({ content, pending, onAskReply }) {
   const [openTurns, setOpenTurns] = useState({})
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
   const parsed = parseAssistantContent(content)
@@ -369,7 +369,7 @@ function AssistantContent({ content, pending }) {
             <em>{open ? '收起详情' : '展开详情'}</em>
             <ChevronDown size={15}/>
           </button>
-          {open && (r.body ? <MarkdownBlock text={r.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>)}
+          {open && (r.body ? <MarkdownBlock text={r.body} onAskReply={onAskReply} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>)}
         </section>
       })}
       {lastRun && <section className="oa-turn-current" key={`last-${lastRun.turn}`}>
@@ -379,7 +379,7 @@ function AssistantContent({ content, pending }) {
     </div>}
     {(parsed.body || !parsed.runs.length) && <div className={parsed.runs.length ? 'oa-final-answer' : ''}>
       {parsed.runs.length && <div className="oa-final-label">返回给用户</div>}
-      <MarkdownBlock text={parsed.body || content || ''} />
+      <MarkdownBlock text={parsed.body || content || ''} onAskReply={onAskReply} />
     </div>}
   </div>
 }
@@ -411,6 +411,7 @@ export default function ChatApp() {
   const threadRef = useRef(null)
   const endRef = useRef(null)
   const fileRef = useRef(null)
+  const promptRef = useRef(null)
   const streamAbortRef = useRef(null)
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
 
@@ -567,6 +568,17 @@ export default function ChatApp() {
   }
 
 
+  const fillAskReply = (text) => {
+    const value = String(text || '')
+    setPrompt(value)
+    setNotice('??????????????')
+    requestAnimationFrame(() => {
+      promptRef.current?.focus?.()
+      const len = value.length
+      promptRef.current?.setSelectionRange?.(len, len)
+    })
+  }
+
   const send = async () => {
     const text = prompt.trim()
     const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
@@ -684,7 +696,7 @@ export default function ChatApp() {
             <div className="oa-bubble">
               <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
               {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
-              {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} /> : <MarkdownBlock text={m.content} />}
+              {m.role === 'assistant' ? <AssistantContent content={m.content} pending={busy && !m.content} onAskReply={fillAskReply} /> : <MarkdownBlock text={m.content} />}
             </div>
           </article>)
           return nodes
@@ -701,7 +713,7 @@ export default function ChatApp() {
               <img src={a.dataURL} alt={a.name}/><span><FileImage size={12}/>{a.name}</span><button type="button" onClick={()=>removeAttachment(a.id)}><X size={12}/></button>
             </div>)}
           </div>}
-          <textarea value={prompt} onPaste={onPaste} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息，可粘贴/拖拽图片…" rows={1}/>
+          <textarea ref={promptRef} value={prompt} onPaste={onPaste} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息，可粘贴/拖拽图片…" rows={1}/>
           <div className="oa-composer-bar">
             <button className="oa-attach-btn" type="button" onClick={()=>fileRef.current?.click()} title="添加图片"><ImagePlus size={17}/><span>图片</span></button>
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
