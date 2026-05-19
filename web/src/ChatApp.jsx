@@ -281,19 +281,27 @@ function AssistantContent({ content, pending }) {
   const toggleTurn = (r, i) => setOpenTurns(xs => ({ ...xs, [`${r.turn}-${i}`]: !isTurnOpen(r, i) }))
   return <div className={`oa-content ${parsed.runs.length ? 'oa-agent-output' : ''}`}>
     {parsed.runs.length > 0 && <div className="oa-turn-stack">
-      <div className="oa-turn-stack-head"><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</div>
+      <div className="oa-turn-stack-head">
+        <span className="oa-run-dot"/>
+        <span>执行过程</span>
+        <b>{parsed.runs.length}</b>
+        <em>{pending ? '正在生成' : '已完成'}</em>
+      </div>
       {boxedRuns.map((r, i) => {
         const open = isTurnOpen(r, i)
         return <section className={`oa-turn-card ${open ? 'open' : 'collapsed'}`} key={`${r.turn}-${i}`}>
-          <button className="oa-turn-toggle" type="button" onClick={() => toggleTurn(r, i)} aria-expanded={open}>
-            <span className="oa-turn-pill">Turn {r.turn}</span><b>{r.title}</b><ChevronDown size={15}/>
+          <button className="oa-turn-toggle" type="button" onClick={() => toggleTurn(r, i)} aria-expanded={open} title={open ? '收起该轮详情' : '展开该轮详情'}>
+            <span className="oa-turn-pill">Turn {r.turn}</span>
+            <b>{r.title || '执行步骤'}</b>
+            <em>{open ? '收起详情' : '展开详情'}</em>
+            <ChevronDown size={15}/>
           </button>
           {open && (r.body ? <MarkdownBlock text={r.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>)}
         </section>
       })}
       {lastRun && <section className="oa-turn-current" key={`last-${lastRun.turn}`}>
-        <div className="oa-turn-current-head"><span>Turn {lastRun.turn}</span><b>{lastRun.title}</b></div>
-        {lastRun.body ? <MarkdownBlock text={lastRun.body} /> : <p className="oa-turn-empty">该轮暂无详细输出</p>}
+        <div className="oa-turn-current-head"><span>Turn {lastRun.turn}</span><b>{lastRun.title || '正在执行'}</b><em>{pending ? '实时输出中' : '最新一轮'}</em></div>
+        {lastRun.body ? <MarkdownBlock text={lastRun.body} /> : <p className="oa-turn-empty">正在等待该轮输出…</p>}
       </section>}
     </div>}
     {(parsed.body || !parsed.runs.length) && <div className={parsed.runs.length ? 'oa-final-answer' : ''}>
