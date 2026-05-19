@@ -125,7 +125,9 @@ func (m *Manager) Discover() []ServiceInfo {
 		sort.Slice(entries, func(i, j int) bool { return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name()) })
 		for _, e := range entries {
 			name := e.Name()
-			if e.IsDir() || !strings.HasSuffix(name, ".py") || strings.HasPrefix(name, "_") || excluded(name) {
+			lowerName := strings.ToLower(name)
+			stem := strings.TrimSuffix(lowerName, ".py")
+			if e.IsDir() || !strings.HasSuffix(lowerName, ".py") || !strings.HasSuffix(stem, "app") || strings.HasPrefix(name, "_") || excluded(name) {
 				continue
 			}
 			rel := filepath.ToSlash(filepath.Join("frontends", name))
