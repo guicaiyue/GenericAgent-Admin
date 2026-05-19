@@ -59,12 +59,14 @@ function MarkdownBlock({ text = '' }) {
 
 const parseToolCallBlock = (block = '') => {
   const text = String(block || '').trim()
-  const compact = text.match(/^🛠️\s*Tool:\s*([^\n📥]+?)\s*(?:📥\s*args:\s*([\s\S]*))?$/i)
-  if (compact) return { name: compact[1].trim(), args: (compact[2] || '').trim() }
-  const tool = text.match(/^🛠️\s*Tool:\s*(.+)$/im)
-  if (!tool) return null
-  const argMatch = text.match(/📥\s*args:\s*([\s\S]*)$/i)
-  return { name: tool[1].trim(), args: (argMatch?.[1] || '').trim() }
+  const compact = text.match(/^🛠️\s*Tool:\s*([\s\S]*?)(?:\s*📥\s*args:\s*([\s\S]*))?$/i)
+  if (!compact) return null
+  return { name: (compact[1] || '').trim(), args: (compact[2] || '').trim() }
+}
+
+const parseToolArgsBlock = (block = '') => {
+  const m = String(block || '').trim().match(/^📥\s*args:\s*([\s\S]*)$/i)
+  return m ? (m[1] || '').trim() : null
 }
 
 function ToolCallBlock({ call }) {
@@ -74,23 +76,45 @@ function ToolCallBlock({ call }) {
   </div>
 }
 
+function renderTextBlock(b, i) {
+  const lines = b.split('\n')
+  if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
+    return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j} dangerouslySetInnerHTML={{__html:inlineMarkdown(x.replace(/^\s*([-*]|\d+\.)\s+/, ''))}} />)}</ul>
+  }
+  if (/^#{1,3}\s+/.test(b.trim())) {
+    const level = Math.min(3, b.trim().match(/^#+/)[0].length)
+    const body = b.trim().replace(/^#{1,3}\s+/, '')
+    const Tag = `h${level + 2}`
+    return <Tag key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(body)}} />
+  }
+  return <p key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(b)}} />
+}
+
 function TextMarkdown({ text = '' }) {
   const blocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
-  return <>{blocks.map((b, i) => {
-    const toolCall = parseToolCallBlock(b)
-    if (toolCall) return <ToolCallBlock key={i} call={toolCall} />
-    const lines = b.split('\n')
-    if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
-      return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j} dangerouslySetInnerHTML={{__html:inlineMarkdown(x.replace(/^\s*([-*]|\d+\.)\s+/, ''))}} />)}</ul>
+  const nodes = []
+  for (let i = 0; i < blocks.length; i++) {
+    const toolCall = parseToolCallBlock(blocks[i])
+    if (toolCall) {
+      let j = i + 1
+      while (j < blocks.length) {
+        const args = parseToolArgsBlock(blocks[j])
+        if (args === null) break
+        toolCall.args = [toolCall.args, args].filter(Boolean).join('\n\n')
+        j += 1
+      }
+      nodes.push(<ToolCallBlock key={i} call={toolCall} />)
+      i = j - 1
+      continue
     }
-    if (/^#{1,3}\s+/.test(b.trim())) {
-      const level = Math.min(3, b.trim().match(/^#+/)[0].length)
-      const body = b.trim().replace(/^#{1,3}\s+/, '')
-      const Tag = `h${level + 2}`
-      return <Tag key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(body)}} />
+    const standaloneArgs = parseToolArgsBlock(blocks[i])
+    if (standaloneArgs !== null) {
+      nodes.push(<ToolCallBlock key={i} call={{ name: 'unknown', args: standaloneArgs }} />)
+      continue
     }
-    return <p key={i} dangerouslySetInnerHTML={{__html:inlineMarkdown(b)}} />
-  })}</>
+    nodes.push(renderTextBlock(blocks[i], i))
+  }
+  return <>{nodes}</>
 }
 
 const FINAL_MARKER_RE = /```+\s*\n?\[Info\]\s*Final response to user\.\s*\n?```+/i
