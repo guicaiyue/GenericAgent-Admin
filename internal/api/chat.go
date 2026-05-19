@@ -243,7 +243,7 @@ func startChatWorker(root string, payload map[string]interface{}) (*exec.Cmd, io
 	}
 	cmd := exec.Command(py, script)
 	cmd.Dir = mustGetwd()
-	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1")
+	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1", "PYTHONUTF8=1", "PYTHONIOENCODING=utf-8")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, err

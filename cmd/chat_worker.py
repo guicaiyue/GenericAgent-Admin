@@ -2,6 +2,18 @@ import json, os, sys, time, traceback, threading, queue
 from pathlib import Path
 
 
+def _force_utf8_stdio():
+    # Windows pipes otherwise may inherit the active ANSI code page and corrupt CJK text.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
+_force_utf8_stdio()
+
+
 def emit(ev):
     print(json.dumps(ev, ensure_ascii=False), flush=True)
 
