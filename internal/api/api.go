@@ -799,6 +799,15 @@ func (b *reactAppBridge) snapshot() map[string]interface{} {
 	pid := 0
 	if running {
 		pid = b.cmd.Process.Pid
+		if !processAlive(pid) {
+			b.status = "stopped"
+			b.logs = append(b.logs, fmt.Sprintf("[process exited: pid %d is no longer alive]", pid))
+			if len(b.logs) > 300 {
+				b.logs = b.logs[len(b.logs)-300:]
+			}
+			running = false
+			pid = 0
+		}
 	}
 	logs := append([]string(nil), b.logs...)
 	return map[string]interface{}{"running": running, "pid": pid, "port": b.port, "url": "/reactapp/", "status": b.status, "logs": logs}
@@ -827,8 +836,16 @@ func (b *reactAppBridge) stop() error {
 func (b *reactAppBridge) start(gaRoot string) error {
 	b.mu.Lock()
 	if b.cmd != nil && b.cmd.Process != nil && b.status == "running" {
-		b.mu.Unlock()
-		return nil
+		pid := b.cmd.Process.Pid
+		if processAlive(pid) {
+			b.mu.Unlock()
+			return nil
+		}
+		b.status = "stopped"
+		b.logs = append(b.logs, fmt.Sprintf("[process exited: pid %d is no longer alive]", pid))
+		if len(b.logs) > 300 {
+			b.logs = b.logs[len(b.logs)-300:]
+		}
 	}
 	b.mu.Unlock()
 	port, err := freePort()

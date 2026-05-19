@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"unsafe"
 )
 
 func hideChildWindow(cmd *exec.Cmd) {
@@ -22,13 +23,10 @@ type processRow struct {
 }
 
 func (m *Manager) stopConflictingService(s ServiceInfo) ([]int, error) {
-	// Frontend singleton services such as fsapp.py may already be running outside Admin.
-	// Force-restart only exact same GA-root script instances; never kill arbitrary python.
-	if s.Kind != "frontend" || len(s.Command) < 2 {
-		return nil, nil
-	}
-	script := filepath.Clean(filepath.Join(m.GARoot, filepath.FromSlash(s.Name)))
-	if !strings.HasSuffix(strings.ToLower(script), ".py") {
+	// Admin is the authority for all GA services. Before starting a managed service,
+	// terminate any already-running external instance that matches the discovered
+	// GA-root command/script, then restart it under Admin so PID/status/logs are tracked.
+	if len(s.Command) < 2 {
 		return nil, nil
 	}
 	rows, err := listPythonProcesses()
@@ -41,7 +39,7 @@ func (m *Manager) stopConflictingService(s ServiceInfo) ([]int, error) {
 		if row.pid <= 0 || row.pid == self {
 			continue
 		}
-		if !commandLineMatchesService(row.commandLine, m.GARoot, script, s.Command[0]) {
+		if !commandLineMatchesService(row.commandLine, m.GARoot, s.Command) {
 			continue
 		}
 		p, err := os.FindProcess(row.pid)
@@ -83,29 +81,43 @@ func listPythonProcesses() ([]processRow, error) {
 	return rows, nil
 }
 
-func commandLineMatchesService(commandLine, gaRoot, script, pythonExe string) bool {
-	cmd := strings.ToLower(normalizePathText(commandLine))
-	root := strings.ToLower(normalizePathText(filepath.Clean(gaRoot)))
-	scriptAbs := strings.ToLower(normalizePathText(filepath.Clean(script)))
-	scriptRel := strings.ToLower(normalizePathText(filepath.ToSlash(mustRel(gaRoot, script))))
-	py := strings.ToLower(normalizePathText(filepath.Clean(pythonExe)))
-	base := strings.ToLower(filepath.Base(script))
-
-	if !strings.Contains(cmd, base) {
+func commandLineMatchesService(commandLine, gaRoot string, serviceCommand []string) bool {
+	if len(serviceCommand) < 2 {
 		return false
 	}
-	if strings.Contains(cmd, scriptAbs) {
-		return true
+	cmd := strings.ToLower(normalizePathText(commandLine))
+	root := strings.ToLower(normalizePathText(filepath.Clean(gaRoot)))
+	py := strings.ToLower(normalizePathText(filepath.Clean(serviceCommand[0])))
+
+	// Require either the configured GA python executable or the GA root path to avoid
+	// killing unrelated python processes that happen to use the same script name.
+	if !strings.Contains(cmd, py) && !strings.Contains(cmd, root) {
+		return false
 	}
-	if strings.Contains(cmd, scriptRel) {
-		// Most Admin-started services use a relative script path after setting Cmd.Dir=m.GARoot.
-		// Treat the exact discovered relative script as conflicting even when WMI does not expose cwd.
-		return true
+
+	for _, arg := range serviceCommand[1:] {
+		if strings.HasPrefix(arg, "-") {
+			if !strings.Contains(cmd, strings.ToLower(arg)) {
+				return false
+			}
+			continue
+		}
+		if !strings.HasSuffix(strings.ToLower(arg), ".py") && !strings.HasSuffix(strings.ToLower(arg), ".pyw") {
+			continue
+		}
+		if !commandLineContainsScript(cmd, gaRoot, arg) {
+			return false
+		}
 	}
-	if strings.Contains(cmd, base) && (strings.Contains(cmd, root) || strings.Contains(cmd, py)) {
-		return true
-	}
-	return false
+	return true
+}
+
+func commandLineContainsScript(cmd, gaRoot, scriptArg string) bool {
+	script := filepath.Clean(filepath.Join(gaRoot, filepath.FromSlash(scriptArg)))
+	scriptAbs := strings.ToLower(normalizePathText(script))
+	scriptRel := strings.ToLower(normalizePathText(filepath.ToSlash(mustRel(gaRoot, script))))
+	base := strings.ToLower(filepath.Base(script))
+	return strings.Contains(cmd, scriptAbs) || strings.Contains(cmd, scriptRel) || strings.Contains(cmd, base)
 }
 
 func normalizePathText(s string) string {
@@ -121,4 +133,23 @@ func mustRel(base, target string) string {
 		return rel
 	}
 	return target
+}
+
+const (
+	processQueryLimitedInformation = 0x1000
+	stillActive                    = 259
+)
+
+func processAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	h, err := syscall.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(h)
+	var code uint32
+	r1, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetExitCodeProcess").Call(uintptr(h), uintptr(unsafe.Pointer(&code)))
+	return r1 != 0 && code == stillActive
 }

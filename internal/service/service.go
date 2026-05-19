@@ -152,8 +152,14 @@ func (m *Manager) withState(s ServiceInfo) ServiceInfo {
 	if p, ok := m.procs[s.Name]; ok {
 		if p.cmd.Process != nil && p.ret == nil {
 			pid := p.cmd.Process.Pid
-			s.PID = &pid
-			s.Running = true
+			if processAlive(pid) {
+				s.PID = &pid
+				s.Running = true
+			} else {
+				code := -1
+				p.ret = &code
+				m.appendLocked(s.Name, fmt.Sprintf("[process exited: pid %d is no longer alive]", pid))
+			}
 		}
 		if p.ret != nil {
 			s.ReturnCode = p.ret
@@ -178,8 +184,14 @@ func (m *Manager) Start(name string) (ServiceInfo, error) {
 	}
 	m.mu.Lock()
 	if p, ok := m.procs[name]; ok && p.cmd.Process != nil && p.ret == nil {
-		m.mu.Unlock()
-		return m.withState(s), nil
+		pid := p.cmd.Process.Pid
+		if processAlive(pid) {
+			m.mu.Unlock()
+			return m.withState(s), nil
+		}
+		code := -1
+		p.ret = &code
+		m.appendLocked(name, fmt.Sprintf("[process exited: pid %d is no longer alive]", pid))
 	}
 	m.buffers[name] = []string{fmt.Sprintf("$ %s", strings.Join(s.Command, " "))}
 	m.mu.Unlock()
