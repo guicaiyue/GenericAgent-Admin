@@ -674,9 +674,9 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-session{min-height:46px;border:0!important;border-radius:10px;background:transparent;color:#333;box-shadow:none!important;font-weight:400;padding:8px 34px 8px 10px;text-align:left;align-items:flex-start;justify-content:center;width:100%;display:flex;flex-direction:column}
 .oa-session span{font-size:14px;font-weight:400;color:#222}
 .oa-session small{color:#8a8a8a;font-size:11.5px;display:flex;align-items:center;gap:4px}
-.oa-session-more{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#666;display:none;align-items:center;justify-content:center;cursor:pointer}
-.oa-session-row:hover .oa-session-more,.oa-session-row.active .oa-session-more{display:flex}
-.oa-session-more:hover{background:#ddd;color:#111}
+.oa-session-more{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;padding:0!important;border:0!important;border-radius:8px;background:transparent!important;color:#6b6b6b;box-shadow:none!important;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;z-index:2}
+.oa-session-row:hover .oa-session-more,.oa-session-row.active .oa-session-more,.oa-session-more.is-open{opacity:1;pointer-events:auto}
+.oa-session-more:hover,.oa-session-more.is-open{background:#e3e3e3!important;color:#111}
 .oa-session-menu{right:4px;top:34px}
 .oa-empty-list{margin:14px 10px;color:#8a8a8a;font-size:13px}
 .oa-sidebar-foot{border-top:0;padding:6px 0 0;display:grid;gap:2px}

@@ -413,7 +413,7 @@ export default function ChatApp() {
           </div> : <button className="oa-session" onClick={()=>openSession(s.id)}>
             <span>{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条</small>
           </button>}
-          {editing !== s.id && <button className="oa-session-more" onClick={(e)=>{e.stopPropagation(); setMenuOpen(menuOpen === s.id ? '' : s.id)}}><MoreHorizontal size={16}/></button>}
+          {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{e.stopPropagation(); setMenuOpen(menuOpen === s.id ? '' : s.id)}} aria-label="会话操作"><MoreHorizontal size={16}/></button>}
           {menuOpen === s.id && <div className="oa-session-menu">
             <button onClick={()=>startRename(s)}><Edit3 size={14}/>重命名</button>
             <button className="danger" onClick={()=>deleteSession(s.id)}><Trash2 size={14}/>删除</button>
