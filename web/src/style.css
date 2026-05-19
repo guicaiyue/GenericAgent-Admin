@@ -991,6 +991,9 @@ pre, code { background:#f7f7f7; color:#111; }
 .oa-tool-head{display:flex;align-items:center;gap:8px;min-height:38px;padding:9px 12px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280}
 .oa-tool-icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:#fff;border:1px solid #e5e7eb;font-size:13px}
 .oa-tool-head b{margin-left:2px;color:#111827;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;font-weight:650}
-.oa-tool-args{padding:10px 12px 12px;background:#fff}
-.oa-tool-args>span{display:block;margin-bottom:7px;color:#6b7280;font-size:12px;font-weight:650}
-.oa-tool-args pre{margin:0;padding:10px 12px;border-radius:10px;background:#f6f6f6;border:1px solid #ececec;white-space:pre-wrap;word-break:break-word;color:#1f2937;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.oa-tool-args,.oa-tool-result{padding:10px 12px 12px;background:#fff}
+.oa-tool-result{border-top:1px solid #eef0f2;background:#fcfcfc}
+.oa-tool-args>span,.oa-tool-result>span{display:block;margin-bottom:7px;color:#6b7280;font-size:12px;font-weight:650}
+.oa-tool-result>span{color:#08785f}
+.oa-tool-args pre,.oa-tool-result pre{margin:0;padding:10px 12px;border-radius:10px;background:#f6f6f6;border:1px solid #ececec;white-space:pre-wrap;word-break:break-word;color:#1f2937;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.oa-tool-result pre{background:#f7fbf9;border-color:#dcefe8;color:#164e3f}

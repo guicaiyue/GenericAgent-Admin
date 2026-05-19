@@ -38,11 +38,11 @@ function CopyButton({ text, compact = false }) {
 
 const splitMarkdownParts = (text = '') => {
   const parts = []
-  const re = /```([^\n`]*)\n?([\s\S]*?)```/g
+  const re = /(`{3,})([^\n`]*)\n?([\s\S]*?)\1/g
   let last = 0, m
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push({ type:'text', text:text.slice(last, m.index) })
-    parts.push({ type:'code', lang:(m[1] || '').trim(), text:m[2] || '' })
+    parts.push({ type:'code', fence:m[1], lang:(m[2] || '').trim(), text:m[3] || '' })
     last = re.lastIndex
   }
   if (last < text.length) parts.push({ type:'text', text:text.slice(last) })
@@ -50,15 +50,27 @@ const splitMarkdownParts = (text = '') => {
   return parts
 }
 
+const isToolResultText = (text = '') => /^\s*\[(Action|Status|Stdout|Stderr|Result|Output)\]/mi.test(String(text || ''))
+
 const normalizeToolParts = (parts = []) => {
   const out = []
   for (let i = 0; i < parts.length; i++) {
-    const p = parts[i]
+    let p = parts[i]
     if (p.type !== 'text') { out.push(p); continue }
+    const marker = String(p.text || '').match(/(?:^|\n)🛠️\s*Tool:/)
+    if (marker && marker.index > 0) {
+      const markerIndex = marker.index + (marker[0].startsWith('\n') ? 1 : 0)
+      const prefix = p.text.slice(0, markerIndex)
+      if (prefix.trim()) out.push({ type:'text', text:prefix })
+      p = { ...p, text:p.text.slice(markerIndex) }
+    }
     const tool = parseToolCallBlock(p.text)
     if (!tool) { out.push(p); continue }
 
     let j = i + 1
+    let sawArgs = Boolean(tool.args)
+    let pendingArgsFence = /📥\s*args\s*:\s*$/i.test(String(p.text || '').trim())
+    let sawResult = false
     while (j < parts.length) {
       const next = parts[j]
       if (next.type === 'text') {
@@ -66,14 +78,30 @@ const normalizeToolParts = (parts = []) => {
         const trimmed = String(next.text || '').trim()
         if (args !== null) {
           tool.args = [tool.args, args].filter(Boolean).join('\n\n')
+          sawArgs = true
+          pendingArgsFence = false
+          j += 1
+          continue
+        }
+        if (isToolResultText(trimmed)) {
+          tool.result = [tool.result, trimmed].filter(Boolean).join('\n\n')
+          sawResult = true
           j += 1
           continue
         }
         if (!trimmed) { j += 1; continue }
       }
       if (next.type === 'code') {
-        if (!tool.args || /📥\s*args:\s*$/i.test(String(p.text || '').trim())) {
+        if (isToolResultText(next.text) || sawResult) {
+          tool.result = [tool.result, next.text].filter(Boolean).join('\n\n')
+          sawResult = true
+          j += 1
+          continue
+        }
+        if (!sawArgs || pendingArgsFence) {
           tool.args = [tool.args, next.text].filter(Boolean).join('\n\n')
+          sawArgs = true
+          pendingArgsFence = false
           j += 1
           continue
         }
@@ -106,10 +134,11 @@ const parseToolCallBlock = (block = '') => {
   if (!tool) return null
   const rest = (tool[1] || '').trim()
   const argsMarker = rest.match(/📥\s*args\s*:/i)
-  if (!argsMarker) return { name: rest.trim(), args: '' }
+  const cleanName = (name = '') => String(name || '').trim().replace(/^`+|`+$/g, '')
+  if (!argsMarker) return { name: cleanName(rest), args: '' }
   const markerIndex = argsMarker.index || 0
   return {
-    name: rest.slice(0, markerIndex).trim(),
+    name: cleanName(rest.slice(0, markerIndex)),
     args: rest.slice(markerIndex + argsMarker[0].length).trim(),
   }
 }
@@ -123,6 +152,7 @@ function ToolCallBlock({ call }) {
   return <div className="oa-tool-call">
     <div className="oa-tool-head"><span className="oa-tool-icon">🛠️</span><span>Tool</span><b>{call.name || 'unknown'}</b></div>
     {call.args && <div className="oa-tool-args"><span>📥 args</span><pre>{call.args}</pre></div>}
+    {call.result && <div className="oa-tool-result"><span>📤 result</span><pre>{call.result}</pre></div>}
   </div>
 }
 
