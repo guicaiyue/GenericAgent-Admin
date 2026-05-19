@@ -63,9 +63,15 @@ export default function App() {
   const load = async () => {
     setBusy(true); setMsg('')
     try {
-      const [c, h, svc, ctrl] = await Promise.all([api('/api/config'), api('/api/ga/health'), api('/api/services'), api('/api/ga/control')])
+      const [c, h] = await Promise.all([api('/api/config'), api('/api/ga/health')])
+      setCfg(c); setRoot(c.ga_root || ''); setHealth(h)
+      if (!h?.ok) {
+        setServices([]); setControl(null); setLogs([]); setFileList([])
+        return
+      }
+      const [svc, ctrl] = await Promise.all([api('/api/services'), api('/api/ga/control')])
       const serviceList = Array.isArray(svc) ? svc : (svc.services || [])
-      setCfg(c); setRoot(c.ga_root || ''); setHealth(h); setServices(serviceList); setControl(ctrl)
+      setServices(serviceList); setControl(ctrl)
       const first = serviceList[0]?.name; if (!selected && first) setSelected(first)
       await loadFiles(filePath)
     } catch (e) { setMsg(e.message) } finally { setBusy(false) }
