@@ -58,6 +58,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/schedule/toggle", s.scheduleToggle)
 	mux.HandleFunc("/api/schedule/artifact", s.scheduleArtifact)
 	mux.HandleFunc("/api/config", s.configHandler)
+	mux.HandleFunc("/api/setup/validate", s.setupValidate)
+	mux.HandleFunc("/api/setup/install", s.setupInstall)
 	mux.HandleFunc("/api/services", s.services)
 	mux.HandleFunc("/api/services/summary", s.summary)
 	mux.HandleFunc("/api/services/start", s.start)
@@ -327,6 +329,91 @@ func (s *Server) configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	bad(w, 405, "method not allowed")
 }
+
+type setupPathReq struct {
+	Path string `json:"path"`
+}
+
+func (s *Server) setupValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req setupPathReq
+	if err := decode(r, &req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	root := strings.TrimSpace(req.Path)
+	if root == "" {
+		bad(w, 400, "path is required")
+		return
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	h := ga.BuildHealth(abs)
+	if h.OK {
+		cfg := s.CfgStore.Cfg
+		cfg.GARoot = abs
+		if err := s.CfgStore.Save(cfg); err != nil {
+			bad(w, 500, err.Error())
+			return
+		}
+	}
+	writeJSON(w, map[string]interface{}{"ok": h.OK, "root": abs, "health": h})
+}
+
+func (s *Server) setupInstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req setupPathReq
+	if err := decode(r, &req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	root := strings.TrimSpace(req.Path)
+	if root == "" {
+		bad(w, 400, "install path is required")
+		return
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	if _, err := os.Stat(filepath.Join(abs, "agentmain.py")); err == nil {
+		bad(w, 409, "target already looks like a GenericAgent directory")
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	cmd := exec.Command("git", "clone", "https://github.com/Fwind43/GenericAgent.git", abs)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		bad(w, 500, strings.TrimSpace(string(out))+": "+err.Error())
+		return
+	}
+	h := ga.BuildHealth(abs)
+	if !h.OK {
+		bad(w, 500, "clone completed but GenericAgent health check failed")
+		return
+	}
+	cfg := s.CfgStore.Cfg
+	cfg.GARoot = abs
+	if err := s.CfgStore.Save(cfg); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "root": abs, "health": h})
+}
+
 func (s *Server) services(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		bad(w, 405, "method not allowed")
