@@ -571,7 +571,7 @@ export default function ChatApp() {
   const fillAskReply = (text) => {
     const value = String(text || '')
     setPrompt(value)
-    setNotice('??????????????')
+    setNotice('已填入快捷回复，确认后可发送')
     requestAnimationFrame(() => {
       promptRef.current?.focus?.()
       const len = value.length
