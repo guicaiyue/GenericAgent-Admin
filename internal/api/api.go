@@ -3,11 +3,21 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"genericagent-admin-go/internal/config"
 	"genericagent-admin-go/internal/ga"
@@ -20,10 +30,11 @@ type Server struct {
 	Svc      *service.Manager
 	Models   *modelconfig.Store
 	Static   fs.FS
+	ReactApp *reactAppBridge
 }
 
 func New(cfg *config.Store, svc *service.Manager, models *modelconfig.Store, static fs.FS) *Server {
-	return &Server{CfgStore: cfg, Svc: svc, Models: models, Static: static}
+	return &Server{CfgStore: cfg, Svc: svc, Models: models, Static: static, ReactApp: newReactAppBridge()}
 }
 
 func (s *Server) Routes() http.Handler {
@@ -55,6 +66,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/models/preview", s.modelsPreview)
 	mux.HandleFunc("/api/models/import-mykey", s.modelsImportMyKey)
 	mux.HandleFunc("/api/models/export", s.modelsExport)
+	mux.HandleFunc("/api/reactapp/status", s.reactAppStatus)
+	mux.HandleFunc("/api/reactapp/start", s.reactAppStart)
+	mux.HandleFunc("/api/reactapp/stop", s.reactAppStop)
+	mux.HandleFunc("/reactapp/", s.reactAppProxy)
 	mux.HandleFunc("/", s.static)
 	return cors(mux)
 }
@@ -485,4 +500,208 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	}
 	_, _ = w.Write(data)
+}
+
+type reactAppBridge struct {
+	mu     sync.Mutex
+	cmd    *exec.Cmd
+	port   int
+	base   *url.URL
+	proxy  *httputil.ReverseProxy
+	logs   []string
+	status string
+}
+
+func newReactAppBridge() *reactAppBridge { return &reactAppBridge{status: "stopped"} }
+
+func (b *reactAppBridge) snapshot() map[string]interface{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	running := b.cmd != nil && b.cmd.Process != nil && b.status == "running"
+	pid := 0
+	if running {
+		pid = b.cmd.Process.Pid
+	}
+	logs := append([]string(nil), b.logs...)
+	return map[string]interface{}{"running": running, "pid": pid, "port": b.port, "url": "/reactapp/", "status": b.status, "logs": logs}
+}
+
+func (b *reactAppBridge) appendLog(line string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.logs = append(b.logs, line)
+	if len(b.logs) > 300 {
+		b.logs = b.logs[len(b.logs)-300:]
+	}
+}
+
+func (b *reactAppBridge) stop() error {
+	b.mu.Lock()
+	cmd := b.cmd
+	b.status = "stopped"
+	b.mu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		return cmd.Process.Kill()
+	}
+	return nil
+}
+
+func (b *reactAppBridge) start(gaRoot string) error {
+	b.mu.Lock()
+	if b.cmd != nil && b.cmd.Process != nil && b.status == "running" {
+		b.mu.Unlock()
+		return nil
+	}
+	b.mu.Unlock()
+	port, err := freePort()
+	if err != nil {
+		return err
+	}
+	py := pythonForRoot(gaRoot)
+	script := filepath.Join(gaRoot, "frontends", "reactapp.py")
+	if st, err := os.Stat(script); err != nil || st.IsDir() {
+		return fmt.Errorf("reactapp.py not found: %s", script)
+	}
+	cmd := exec.Command(py, script)
+	cmd.Dir = gaRoot
+	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1", fmt.Sprintf("GA_REACT_PORT=%d", port))
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	u, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d/", port))
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	orig := proxy.Director
+	proxy.Director = func(r *http.Request) {
+		orig(r)
+		r.Host = u.Host
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/reactapp")
+		if r.URL.Path == "" {
+			r.URL.Path = "/"
+		}
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	b.cmd = cmd
+	b.port = port
+	b.base = u
+	b.proxy = proxy
+	b.status = "running"
+	b.logs = []string{fmt.Sprintf("$ %s %s (GA_REACT_PORT=%d)", py, script, port)}
+	b.mu.Unlock()
+	go b.copyPipe(stdout)
+	go b.copyPipe(stderr)
+	go func() {
+		err := cmd.Wait()
+		b.appendLog(fmt.Sprintf("[process exited: %v]", err))
+		b.mu.Lock()
+		if b.cmd == cmd {
+			b.status = "stopped"
+		}
+		b.mu.Unlock()
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond); err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	return nil
+}
+
+func (b *reactAppBridge) copyPipe(r io.Reader) {
+	buf := make([]byte, 4096)
+	acc := ""
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			acc += string(buf[:n])
+			for {
+				i := strings.IndexByte(acc, '\n')
+				if i < 0 {
+					break
+				}
+				b.appendLog(strings.TrimRight(acc[:i], "\r"))
+				acc = acc[i+1:]
+			}
+		}
+		if err != nil {
+			if acc != "" {
+				b.appendLog(acc)
+			}
+			return
+		}
+	}
+}
+
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func pythonForRoot(root string) string {
+	cands := []string{}
+	if runtime.GOOS == "windows" {
+		cands = append(cands, filepath.Join(root, ".venv", "Scripts", "python.exe"), filepath.Join(root, "venv", "Scripts", "python.exe"))
+	} else {
+		cands = append(cands, filepath.Join(root, ".venv", "bin", "python"), filepath.Join(root, "venv", "bin", "python"))
+	}
+	for _, c := range cands {
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	return "python"
+}
+
+func (s *Server) reactAppStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.ReactApp.snapshot())
+}
+func (s *Server) reactAppStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	if err := s.ReactApp.start(s.CfgStore.Cfg.GARoot); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, s.ReactApp.snapshot())
+}
+func (s *Server) reactAppStop(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	if err := s.ReactApp.stop(); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, s.ReactApp.snapshot())
+}
+func (s *Server) reactAppProxy(w http.ResponseWriter, r *http.Request) {
+	if err := s.ReactApp.start(s.CfgStore.Cfg.GARoot); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	s.ReactApp.mu.Lock()
+	proxy := s.ReactApp.proxy
+	s.ReactApp.mu.Unlock()
+	if proxy == nil {
+		bad(w, 503, "reactapp proxy not ready")
+		return
+	}
+	proxy.ServeHTTP(w, r)
 }
