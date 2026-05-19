@@ -111,7 +111,7 @@ function AssistantContent({ content, pending }) {
   const parsed = parseAssistantContent(content)
   const boxedRuns = parsed.runs.slice(0, -1)
   const lastRun = parsed.runs[parsed.runs.length - 1]
-  const isTurnOpen = (r, i) => openTurns[`${r.turn}-${i}`] !== false
+  const isTurnOpen = (r, i) => openTurns[`${r.turn}-${i}`] === true
   const toggleTurn = (r, i) => setOpenTurns(xs => ({ ...xs, [`${r.turn}-${i}`]: !isTurnOpen(r, i) }))
   return <div className={`oa-content ${parsed.runs.length ? 'oa-agent-output' : ''}`}>
     {parsed.runs.length > 0 && <div className="oa-turn-stack">
