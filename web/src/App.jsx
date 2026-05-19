@@ -3,11 +3,11 @@ import { Activity, Bot, Brain, CalendarClock, CheckCircle2, Eye, FileCode2, Fold
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail || `${res.status} ${res.statusText}`)
-  }
-  return res.json()
+  const text = await res.text()
+  let body = null
+  try { body = text ? JSON.parse(text) : null } catch { throw new Error(`Expected JSON from ${url}, got ${text.slice(0, 40)}`) }
+  if (!res.ok) throw new Error(body?.detail || `${res.status} ${res.statusText}`)
+  return body
 }
 
 const I18N = {
@@ -71,10 +71,10 @@ export default function App() {
   }
   useEffect(() => { load() }, [])
   useEffect(() => { localStorage.setItem('ga-admin-lang', lang) }, [lang])
-  useEffect(() => { if (selected) api(`/api/services/logs?name=${encodeURIComponent(selected)}`).then(d => setLogs(d.lines || [])).catch(e => setMsg(e.message)) }, [selected])
+  useEffect(() => { if (selected) api(`/api/logs/${encodeURIComponent(selected)}`).then(d => setLogs(d.lines || [])).catch(e => setMsg(e.message)) }, [selected])
 
   const saveConfig = async () => { setBusy(true); try { const c = await api('/api/config', { method: 'PUT', body: JSON.stringify({ ...cfg, ga_root: root }) }); setCfg(c); setMsg(t.hints.rootSaved); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const serviceAction = async (name, action) => { setBusy(true); try { await api(`/api/services/${action}`, { method:'POST', body: JSON.stringify({ name }) }); await load(); if (selected === name) setLogs((await api(`/api/services/logs?name=${encodeURIComponent(name)}`)).lines || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const serviceAction = async (name, action) => { setBusy(true); try { await api(`/api/services/${action}`, { method:'POST', body: JSON.stringify({ name }) }); await load(); if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}`)).lines || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const toggleTask = async (id, enabled) => { setBusy(true); try { await api('/api/schedule/toggle', { method:'POST', body: JSON.stringify({ id, enabled }) }); setMsg(t.hints.taskToggled); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
   const loadFiles = async (path = '') => { const d = await api(`/api/files/list?path=${encodeURIComponent(path || '')}`); setFileList(d.entries || []); setFilePath(path || '') }
@@ -86,9 +86,9 @@ export default function App() {
   const createTask = async () => { setTaskId(newTaskId); setTaskEditor(safeJson({ schedule: '09:00', repeat: 'daily', enabled: false, prompt: '' })) }
   const deleteTask = async () => { if (!taskId) return; setBusy(true); try { await api('/api/schedule/task/delete', { method:'POST', body: JSON.stringify({ id: taskId }) }); setMsg(t.hints.taskDeleted); setTaskId(''); setTaskEditor('{}'); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
-  const importModels = async () => { setBusy(true); try { const d = await api('/api/models/import', { method:'POST', body: JSON.stringify({ reveal:false, save:false }) }); setProfiles(d.profiles?.length ? d.profiles : [emptyProfile(0)]); setModelPreview(safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const previewModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, reveal:false }) }); setModelPreview(d.content || safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const saveModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, write:true, reveal:false }) }); setModelPreview(d.content || safeJson(d)); setMsg(t.hints.modelsSaved) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const importModels = async () => { setBusy(true); try { const d = await api('/api/models/import-mykey', { method:'POST', body: JSON.stringify({ reveal:false, save:false }) }); setProfiles(d.profiles?.length ? d.profiles : [emptyProfile(0)]); setModelPreview(safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const previewModels = async () => { setBusy(true); try { const d = await api('/api/models/preview', { method:'POST', body: JSON.stringify({ profiles }) }); setModelPreview(d.python || safeJson(d)) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const saveModels = async () => { setBusy(true); try { const d = await api('/api/models/export', { method:'POST', body: JSON.stringify({ profiles, overwrite_active:true }) }); setModelPreview(safeJson(d)); setMsg(t.hints.modelsSaved) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const patchProfile = (idx, patch) => setProfiles(ps => ps.map((p, i) => i === idx ? { ...p, ...patch } : p))
 
   const nav = ['overview','control','files','tasks','memory','channels','autonomous','schedule','models','logs']
