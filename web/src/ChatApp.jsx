@@ -294,8 +294,10 @@ export default function ChatApp() {
   const loadChatState = async (id) => {
     if (!id) return
     const st = await api(`/api/chat/state/${id}`)
-    setLlms(st.llms || [])
-    setLlmNo(st.llm_no || st.settings?.llm_no || 0)
+    const nextLlms = st.llms || []
+    const nextNo = st.settings?.llm_no ?? st.llm_no ?? nextLlms[0]?.index ?? 0
+    setLlms(nextLlms)
+    setLlmNo(nextLlms.some(m => m.index === nextNo) ? nextNo : (nextLlms[0]?.index ?? 0))
   }
 
   const openSession = async (id, refreshList = true) => {
@@ -394,6 +396,7 @@ export default function ChatApp() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth', block:'end' }) }, [messages, busy])
 
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
+  const selectedModelNo = activeModel?.index ?? llmNo
 
   return <div className="oa-chat">
     <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -453,8 +456,8 @@ export default function ChatApp() {
         <div className="oa-composer">
           <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息…" rows={1}/>
           <div className="oa-composer-bar">
-            <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '默认模型'}</span><select value={llmNo} onChange={e=>saveModel(Number(e.target.value))}>
-              <option value={0}>自动 / 默认</option>{llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>)}
+            <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
+              {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
             <button className="oa-send" disabled={busy || !prompt.trim()} onClick={send}><Send size={17}/></button>
           </div>

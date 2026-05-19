@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -172,23 +173,12 @@ func (s *Server) chatSaveSettings(w http.ResponseWriter, r *http.Request, sid st
 }
 func (s *Server) chatState(w http.ResponseWriter, r *http.Request, sid string) {
 	cs, _ := loadChatSession(s.CfgStore.Cfg.GARoot, safeChatID(sid))
-	llms := []map[string]interface{}{}
-	if s.Models != nil {
-		if d, err := s.Models.Load(false); err == nil {
-			for i, p := range d.Profiles {
-				label := strings.TrimSpace(p.Name)
-				if label == "" {
-					label = p.VarName
-				}
-				model := strings.TrimSpace(p.Model)
-				if model != "" {
-					label += " · " + model
-				}
-				llms = append(llms, map[string]interface{}{"index": i + 1, "label": label, "name": p.Name, "var_name": p.VarName, "model": p.Model, "type": p.Type})
-			}
-		}
+	llms, err := listGARuntimeLLMs(s.CfgStore.Cfg.GARoot)
+	backend := map[string]string{"class": "GenericAgent worker", "source": "agentmain.GenericAgent.list_llms"}
+	if err != nil {
+		backend["warning"] = err.Error()
 	}
-	writeJSON(w, map[string]interface{}{"settings": cs.Settings, "llm_no": cs.Settings.LLMNo, "llms": llms, "backend": map[string]string{"class": "GenericAgent worker"}})
+	writeJSON(w, map[string]interface{}{"settings": cs.Settings, "llm_no": cs.Settings.LLMNo, "llms": llms, "backend": backend})
 }
 
 func (s *Server) chatPost(w http.ResponseWriter, r *http.Request, sid string) {
@@ -283,6 +273,40 @@ func (s *Server) finishChatError(w http.ResponseWriter, enc *json.Encoder, flush
 	if flusher != nil {
 		flusher.Flush()
 	}
+}
+
+func listGARuntimeLLMs(root string) ([]map[string]interface{}, error) {
+	py := pythonForRoot(root)
+	code := `import json, os, sys
+root = sys.argv[1]
+if root not in sys.path:
+    sys.path.insert(0, root)
+os.chdir(root)
+from agentmain import GenericAgent
+agent = GenericAgent()
+items = []
+for idx, label, active in agent.list_llms():
+    text = str(label)
+    name = text.split('/', 1)[1] if '/' in text else text
+    model = text.rsplit('/', 1)[1] if '/' in text else ''
+    items.append({'index': int(idx), 'label': text, 'name': name, 'model': model, 'active': bool(active)})
+print(json.dumps(items, ensure_ascii=False))`
+	cmd := exec.Command(py, "-c", code, root)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1", "PYTHONUTF8=1", "PYTHONIOENCODING=utf-8")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return []map[string]interface{}{}, fmt.Errorf("list GA LLMs failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	clean := bytes.TrimSpace(out)
+	if i := bytes.LastIndex(clean, []byte("[")); i >= 0 {
+		clean = clean[i:]
+	}
+	var llms []map[string]interface{}
+	if err := json.Unmarshal(clean, &llms); err != nil {
+		return []map[string]interface{}{}, fmt.Errorf("parse GA LLMs failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return llms, nil
 }
 
 func startChatWorker(root string, payload map[string]interface{}) (*exec.Cmd, io.ReadCloser, io.ReadCloser, error) {
