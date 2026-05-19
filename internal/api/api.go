@@ -105,7 +105,8 @@ func decode(r *http.Request, v interface{}) error {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]interface{}{"ok": true, "config": s.CfgStore.Cfg, "services": s.Svc.Summary()})
+	h := ga.BuildHealth(s.CfgStore.Cfg.GARoot)
+	writeJSON(w, map[string]interface{}{"ok": h.OK, "config": s.CfgStore.Cfg, "services": s.Svc.Summary(), "health": h})
 }
 
 func (s *Server) gaInventory(w http.ResponseWriter, r *http.Request) {
