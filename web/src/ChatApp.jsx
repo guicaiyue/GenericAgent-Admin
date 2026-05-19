@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Square, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -383,13 +383,6 @@ function AssistantContent({ content, pending, onAskReply }) {
     </div>}
   </div>
 }
-const examples = [
-  ['巡检系统', '概览当前 GenericAgent 状态'],
-  ['定位错误', '帮我检查最近的错误日志，并给出可执行修复方案'],
-  ['规划进化', '规划下一步自主进化任务，拆成可验证里程碑'],
-  ['审查模型', '总结当前模型配置风险'],
-]
-
 export default function ChatApp() {
   const [sessions, setSessions] = useState([])
   const [sid, setSid] = useState('')
@@ -698,10 +691,8 @@ export default function ChatApp() {
 
       <section className="oa-thread" ref={threadRef} onScroll={updateFollowFromScroll} onWheel={e=>{ if (e.deltaY < 0) breakFollow() }} onTouchMove={breakFollow}>
         {messages.length === 0 && <div className="oa-empty">
-          <div className="oa-hero-badge"><Sparkles size={16}/>Agent cockpit</div>
           <h1>今天想让 GenericAgent 做什么？</h1>
-          <p>支持 Markdown、代码块复制、模型切换、会话重命名与删除。</p>
-          <div className="oa-prompts">{examples.map(([k, x]) => <button className="oa-prompt" key={x} onClick={()=>setPrompt(x)}><b>{k}</b><span>{x}</span></button>)}</div>
+          <p>支持 Markdown、代码块复制、图片输入、模型切换、会话重命名与删除。</p>
         </div>}
         {messages.flatMap((m, i) => {
           const day = timelineKey(m.created_at)
