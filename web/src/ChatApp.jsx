@@ -17,7 +17,7 @@ const parseAssistantContent = (raw = '') => {
   let text = String(raw || '').replace(/\r\n/g, '\n')
   const runs = []
   text = text.replace(/\*\*\s*LLM Running \(Turn\s+(\d+)\)\s*\.\.\.\s*\*\*/gi, (_, n) => {
-    runs.push({ turn: Number(n) || runs.length + 1 })
+    runs.push({ turn: Number(n) || runs.length + 1, title: '' })
     return '\n'
   })
   const summaries = []
@@ -26,24 +26,24 @@ const parseAssistantContent = (raw = '') => {
     if (s) summaries.push(s)
     return '\n'
   })
+  summaries.forEach((s, i) => {
+    if (runs[i]) runs[i].title = s
+    else runs.push({ turn: runs.length + 1, title: s })
+  })
   text = text.replace(/```+\s*\n?\[Info\]\s*Final response to user\.\s*\n?```+/gi, '\n')
   text = text.replace(/\n{3,}/g, '\n\n').trim()
-  return { runs, summaries, body: text }
+  return { runs, body: text }
 }
 
 function AssistantContent({ content, pending }) {
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
   const parsed = parseAssistantContent(content)
-  if (!parsed.runs.length && !parsed.summaries.length) return <div className="oa-content">{content || ''}</div>
+  if (!parsed.runs.length) return <div className="oa-content">{content || ''}</div>
   return <div className="oa-content oa-agent-output">
     {parsed.runs.length > 0 && <details className="oa-run-card" open={pending}>
       <summary><span className="oa-run-dot"/>执行过程 <b>{parsed.runs.length}</b> 轮</summary>
-      <div className="oa-run-list">{parsed.runs.map((r, i) => <span key={i}>Turn {r.turn}</span>)}</div>
+      <div className="oa-run-list">{parsed.runs.map((r, i) => <span key={i}><b>Turn {r.turn}</b>{r.title && <em>{r.title}</em>}</span>)}</div>
     </details>}
-    {parsed.summaries.map((s, i) => <div className="oa-summary-card" key={i}>
-      <span>简要内容</span>
-      <b>{s}</b>
-    </div>)}
     {parsed.body && <div className="oa-answer-text">{parsed.body}</div>}
   </div>
 }

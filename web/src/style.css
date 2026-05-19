@@ -891,38 +891,36 @@ pre, code { background:#f7f7f7; color:#111; }
   box-shadow:0 0 0 4px rgba(16,163,127,.10);
 }
 .oa-run-list {
-  display:flex;
-  flex-wrap:wrap;
+  display:grid;
   gap:6px;
   padding:0 12px 12px 28px;
 }
 .oa-run-list span {
-  padding:4px 8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  padding:6px 8px;
   border:1px solid #e7e7e7;
-  border-radius:999px;
+  border-radius:10px;
   background:#fff;
   color:#666;
   font-size:12px;
-  line-height:1.2;
+  line-height:1.35;
 }
-.oa-summary-card {
-  display:grid;
-  gap:5px;
-  padding:12px 14px;
-  border-left:3px solid #111;
-  border-radius:12px;
-  background:#f7f7f8;
-}
-.oa-summary-card span {
-  color:#777;
+.oa-run-list span b {
+  flex:0 0 auto;
+  color:#303030;
   font-size:12px;
-  line-height:1.2;
+  font-weight:600;
 }
-.oa-summary-card b {
-  color:#202123;
-  font-size:14px;
-  font-weight:500;
-  line-height:1.6;
+.oa-run-list span em {
+  min-width:0;
+  color:#444;
+  font-style:normal;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 .oa-answer-text {
   white-space:pre-wrap;
