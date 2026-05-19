@@ -163,6 +163,29 @@ func TailSafe(root, rel string, lines int) (SafeFileDetail, error) {
 	return d, nil
 }
 
+func WriteSafe(root, rel, content string) (SafeFileDetail, error) {
+	abs, clean, err := SafeResolve(root, rel)
+	if err != nil {
+		return SafeFileDetail{}, err
+	}
+	if clean == "" {
+		return SafeFileDetail{}, errors.New("path is empty")
+	}
+	if strings.HasSuffix(clean, "/") || strings.HasSuffix(clean, "\\") {
+		return SafeFileDetail{}, errors.New("cannot write directory")
+	}
+	if !utf8.ValidString(content) {
+		return SafeFileDetail{}, errors.New("content is not valid UTF-8")
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		return SafeFileDetail{}, err
+	}
+	if err := os.WriteFile(abs, []byte(content), 0644); err != nil {
+		return SafeFileDetail{}, err
+	}
+	return ReadSafe(root, clean)
+}
+
 func SearchSafe(root, rel, q string, maxHits int) ([]FileSearchHit, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {

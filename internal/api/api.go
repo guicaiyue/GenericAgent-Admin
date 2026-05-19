@@ -34,6 +34,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/ga/control", s.gaControl)
 	mux.HandleFunc("/api/files/list", s.filesList)
 	mux.HandleFunc("/api/files/read", s.filesRead)
+	mux.HandleFunc("/api/files/write", s.filesWrite)
 	mux.HandleFunc("/api/files/tail", s.filesTail)
 	mux.HandleFunc("/api/files/search", s.filesSearch)
 	mux.HandleFunc("/api/schedule/tasks", s.scheduleTasks)
@@ -218,6 +219,27 @@ func (s *Server) filesRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d, err := ga.ReadSafe(s.CfgStore.Cfg.GARoot, r.URL.Query().Get("path"))
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, d)
+}
+
+func (s *Server) filesWrite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	d, err := ga.WriteSafe(s.CfgStore.Cfg.GARoot, req.Path, req.Content)
 	if err != nil {
 		bad(w, 400, err.Error())
 		return
