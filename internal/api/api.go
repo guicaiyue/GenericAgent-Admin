@@ -27,6 +27,7 @@ import (
 	"genericagent-admin-go/internal/ga"
 	"genericagent-admin-go/internal/modelconfig"
 	"genericagent-admin-go/internal/service"
+	"genericagent-admin-go/internal/version"
 )
 
 type Server struct {
@@ -47,6 +48,11 @@ func New(cfg *config.Store, svc *service.Manager, models *modelconfig.Store, sta
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", s.health)
+	mux.HandleFunc("/api/version", s.versionInfo)
+	mux.HandleFunc("/api/version/info", s.versionInfo)
+	mux.HandleFunc("/api/version/check", s.versionCheck)
+	mux.HandleFunc("/api/version/status", s.versionStatus)
+	mux.HandleFunc("/api/version/update", s.versionUpdate)
 	mux.HandleFunc("/api/ga/inventory", s.gaInventory)
 	mux.HandleFunc("/api/ga/health", s.gaHealth)
 	mux.HandleFunc("/api/ga/control", s.gaControl)
@@ -129,6 +135,50 @@ func decode(r *http.Request, v interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) versionInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	writeJSON(w, version.Current())
+}
+
+func (s *Server) versionCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	res, err := version.Check(ctx)
+	if err != nil {
+		bad(w, 502, err.Error())
+		return
+	}
+	writeJSON(w, res)
+}
+
+func (s *Server) versionStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	writeJSON(w, version.CurrentUpdateStatus())
+}
+
+func (s *Server) versionUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	st, err := version.StartApplyLatest()
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, st)
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {

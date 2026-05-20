@@ -518,14 +518,33 @@ print(json.dumps(items, ensure_ascii=False))`
 		return []map[string]interface{}{}, fmt.Errorf("list GA LLMs failed: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	clean := bytes.TrimSpace(out)
-	if i := bytes.LastIndex(clean, []byte("[")); i >= 0 {
-		clean = clean[i:]
-	}
-	var llms []map[string]interface{}
-	if err := json.Unmarshal(clean, &llms); err != nil {
-		return []map[string]interface{}{}, fmt.Errorf("parse GA LLMs failed: %v: %s", err, strings.TrimSpace(string(out)))
+	llms, parseErr := parseLLMJSONArrayFromMixedOutput(clean)
+	if parseErr != nil {
+		return []map[string]interface{}{}, fmt.Errorf("parse GA LLMs failed: %v: %s", parseErr, strings.TrimSpace(string(out)))
 	}
 	return llms, nil
+}
+
+func parseLLMJSONArrayFromMixedOutput(out []byte) ([]map[string]interface{}, error) {
+	var lastErr error
+	for start := bytes.IndexByte(out, '['); start >= 0; {
+		var llms []map[string]interface{}
+		dec := json.NewDecoder(bytes.NewReader(out[start:]))
+		if err := dec.Decode(&llms); err == nil {
+			return llms, nil
+		} else {
+			lastErr = err
+		}
+		next := bytes.IndexByte(out[start+1:], '[')
+		if next < 0 {
+			break
+		}
+		start += next + 1
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no JSON array found")
 }
 
 func (s *Server) getChatWorker(sid string) (*chatWorker, error) {

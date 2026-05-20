@@ -1731,3 +1731,7 @@ pre, code { font-variant-ligatures: none; }
 .goal-raw-details summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 720; }
 @media (max-width: 1180px) { .goal-shell { grid-template-columns: 1fr; } .goal-list { max-height: 420px; } .goal-output, .goal-chat-stream { max-height: 620px; } }
 @media (max-width: 680px) { .goal-stats { grid-template-columns: 1fr; } .goal-toolbar .inline-field, .goal-toolbar .inline-field input { width: 100%; } .goal-row-actions button, .goal-summary-files button { flex: 1 1 auto; } }
+
+.version-card{display:flex;flex-direction:column;gap:10px}.version-card code{display:block;word-break:break-all}.version-card a{color:inherit}
+
+.update-progress{border:1px solid var(--border);background:rgba(148,163,184,.08);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:7px}.update-progress-head{display:flex;justify-content:space-between;align-items:center;font-size:13px}.progress-bar{height:8px;border-radius:999px;background:rgba(148,163,184,.25);overflow:hidden}.progress-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#22c55e);transition:width .25s ease}.update-progress p{margin:0}.update-progress code{font-size:12px}

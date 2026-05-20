@@ -67,10 +67,14 @@ jobs:
         run: |
           mkdir -p dist/cmd
           cp cmd/chat_worker.py dist/cmd/chat_worker.py
+          tag='${{ inputs.tag }}'
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-s -w -X genericagent-admin-go/internal/version.Version=${tag} -X genericagent-admin-go/internal/version.Commit=${COMMIT} -X genericagent-admin-go/internal/version.Date=${BUILD_DATE}"
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -ldflags="-s -w -H=windowsgui" -o dist/ga-admin.exe .
+            go build -ldflags="$LDFLAGS -H=windowsgui" -o dist/ga-admin.exe .
           else
-            go build -ldflags="-s -w" -o dist/ga-admin .
+            go build -ldflags="$LDFLAGS" -o dist/ga-admin .
           fi
 
       - name: Package
