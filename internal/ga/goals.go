@@ -42,6 +42,7 @@ type GoalState struct {
 	StateFile     string   `json:"state_file,omitempty"`
 	LogFile       string   `json:"log_file,omitempty"`
 	LLMNo         *int     `json:"llm_no,omitempty"`
+	PythonPath    string   `json:"python_path,omitempty"`
 }
 
 // GoalMeta is the Admin-Go console view of one Goal Mode run.
@@ -64,6 +65,7 @@ type GoalMeta struct {
 	LogExists        bool      `json:"log_exists"`
 	MissingLog       bool      `json:"missing_log"`
 	LLMNo            *int      `json:"llm_no,omitempty"`
+	PythonPath       string    `json:"python_path,omitempty"`
 	ModTime          time.Time `json:"mod_time"`
 	EndTime          *float64  `json:"end_time,omitempty"`
 }
@@ -73,6 +75,7 @@ type GoalStartOptions struct {
 	BudgetSeconds int
 	MaxTurns      int
 	LLMNo         *int
+	PythonPath    string
 }
 
 func StartGoal(root string, opt GoalStartOptions) (GoalMeta, error) {
@@ -118,7 +121,11 @@ func StartGoal(root string, opt GoalStartOptions) (GoalMeta, error) {
 	}
 	statePath := filepath.Join(tempDir, goalStatePrefix+id+".json")
 	logPath := filepath.Join(tempDir, goalStatePrefix+id+".log")
-	state := GoalState{Objective: strings.TrimSpace(opt.Objective), BudgetSeconds: opt.BudgetSeconds, StartTime: float64(time.Now().UnixNano()) / 1e9, TurnsUsed: 0, MaxTurns: opt.MaxTurns, Status: "running", DonePrompt: "", ID: id, StateFile: filepath.ToSlash(filepath.Join("temp", filepath.Base(statePath))), LogFile: filepath.ToSlash(filepath.Join("temp", filepath.Base(logPath))), LLMNo: opt.LLMNo}
+	pythonPath, err := goalPython(root, opt.PythonPath)
+	if err != nil {
+		return GoalMeta{}, err
+	}
+	state := GoalState{Objective: strings.TrimSpace(opt.Objective), BudgetSeconds: opt.BudgetSeconds, StartTime: float64(time.Now().UnixNano()) / 1e9, TurnsUsed: 0, MaxTurns: opt.MaxTurns, Status: "running", DonePrompt: "", ID: id, StateFile: filepath.ToSlash(filepath.Join("temp", filepath.Base(statePath))), LogFile: filepath.ToSlash(filepath.Join("temp", filepath.Base(logPath))), LLMNo: opt.LLMNo, PythonPath: pythonPath}
 	if err := writeGoalState(statePath, state); err != nil {
 		return GoalMeta{}, err
 	}
@@ -133,7 +140,7 @@ func StartGoal(root string, opt GoalStartOptions) (GoalMeta, error) {
 	if opt.LLMNo != nil && *opt.LLMNo >= 0 {
 		args = append(args, "--llm_no", strconv.Itoa(*opt.LLMNo))
 	}
-	cmd := exec.Command(goalPython(root), args...)
+	cmd := exec.Command(pythonPath, args...)
 	cmd.Dir = root
 	cmd.Env = goalCommandEnv(os.Environ(), statePath)
 	cmd.Stdout = logFile
@@ -180,7 +187,6 @@ func ListGoals(root string) ([]GoalMeta, error) {
 	sort.Slice(items, func(i, j int) bool { return items[i].ModTime.After(items[j].ModTime) })
 	return items, nil
 }
-
 
 func DeleteGoal(root, id string) error {
 	id = sanitizeGoalID(id)
@@ -402,29 +408,39 @@ func upsertEnv(env []string, key, value string) []string {
 	return append(env, prefix+value)
 }
 
-func goalPython(root string) string {
+func goalPython(root, requested string) (string, error) {
+	requested = strings.TrimSpace(requested)
+	if requested != "" {
+		if !filepath.IsAbs(requested) {
+			requested = filepath.Join(root, requested)
+		}
+		if !existsFile(requested) {
+			return "", fmt.Errorf("python_path does not exist: %s", requested)
+		}
+		return requested, nil
+	}
 	if runtime.GOOS == "windows" {
 		for _, p := range []string{filepath.Join(root, ".venv", "Scripts", "python.exe"), filepath.Join(root, "venv", "Scripts", "python.exe")} {
 			if existsFile(p) {
-				return p
+				return p, nil
 			}
 		}
 		if p := latestUVWindowsPython(); p != "" {
-			return p
+			return p, nil
 		}
 		if p, err := exec.LookPath("python"); err == nil && !isWindowsAppsPythonAlias(p) {
-			return p
+			return p, nil
 		}
 	}
 	for _, p := range []string{filepath.Join(root, ".venv", "bin", "python"), filepath.Join(root, "venv", "bin", "python")} {
 		if existsFile(p) {
-			return p
+			return p, nil
 		}
 	}
 	if p, err := exec.LookPath("python3"); err == nil {
-		return p
+		return p, nil
 	}
-	return "python"
+	return "python", nil
 }
 
 func latestUVWindowsPython() string {

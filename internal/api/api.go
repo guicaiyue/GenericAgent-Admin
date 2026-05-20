@@ -192,6 +192,7 @@ func (s *Server) goalsStart(w http.ResponseWriter, r *http.Request) {
 		BudgetMinutes int    `json:"budget_minutes"`
 		MaxTurns      int    `json:"max_turns"`
 		LLMNo         *int   `json:"llm_no"`
+		PythonPath    string `json:"python_path"`
 	}
 	if err := decode(r, &req); err != nil {
 		bad(w, 400, err.Error())
@@ -208,7 +209,7 @@ func (s *Server) goalsStart(w http.ResponseWriter, r *http.Request) {
 		}
 		req.BudgetSeconds = req.BudgetMinutes * 60
 	}
-	meta, err := ga.StartGoal(s.CfgStore.Cfg.GARoot, ga.GoalStartOptions{Objective: req.Objective, BudgetSeconds: req.BudgetSeconds, MaxTurns: req.MaxTurns, LLMNo: req.LLMNo})
+	meta, err := ga.StartGoal(s.CfgStore.Cfg.GARoot, ga.GoalStartOptions{Objective: req.Objective, BudgetSeconds: req.BudgetSeconds, MaxTurns: req.MaxTurns, LLMNo: req.LLMNo, PythonPath: req.PythonPath})
 	if err != nil {
 		bad(w, 400, err.Error())
 		return
@@ -249,7 +250,6 @@ func (s *Server) goalsStop(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "goal": meta})
 }
-
 
 func (s *Server) goalsDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
