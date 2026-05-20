@@ -576,3 +576,32 @@ func writeStateForTest(t *testing.T, path string, state GoalState) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoalCommandEnvForcesUTF8AndState(t *testing.T) {
+	env := goalCommandEnv([]string{"PYTHONIOENCODING=gbk", "PATH=x"}, `C:\tmp\goal.json`)
+	got := map[string]string{}
+	for _, item := range env {
+		parts := strings.SplitN(item, "=", 2)
+		if len(parts) == 2 {
+			got[parts[0]] = parts[1]
+		}
+	}
+	if got["GOAL_STATE"] != `C:\tmp\goal.json` {
+		t.Fatalf("GOAL_STATE = %q", got["GOAL_STATE"])
+	}
+	if got["PYTHONIOENCODING"] != "utf-8" {
+		t.Fatalf("PYTHONIOENCODING = %q, want utf-8", got["PYTHONIOENCODING"])
+	}
+	if got["PYTHONUTF8"] != "1" {
+		t.Fatalf("PYTHONUTF8 = %q, want 1", got["PYTHONUTF8"])
+	}
+	count := 0
+	for _, item := range env {
+		if strings.HasPrefix(item, "PYTHONIOENCODING=") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("PYTHONIOENCODING occurrences = %d, env=%#v", count, env)
+	}
+}

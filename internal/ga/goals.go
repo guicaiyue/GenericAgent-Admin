@@ -135,7 +135,7 @@ func StartGoal(root string, opt GoalStartOptions) (GoalMeta, error) {
 	}
 	cmd := exec.Command(goalPython(root), args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "GOAL_STATE="+statePath)
+	cmd.Env = goalCommandEnv(os.Environ(), statePath)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	if err := cmd.Start(); err != nil {
@@ -179,6 +179,30 @@ func ListGoals(root string) ([]GoalMeta, error) {
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ModTime.After(items[j].ModTime) })
 	return items, nil
+}
+
+
+func DeleteGoal(root, id string) error {
+	id = sanitizeGoalID(id)
+	if id == "" {
+		return errors.New("id is required")
+	}
+	statePath := filepath.Join(root, "temp", goalStatePrefix+id+".json")
+	state, err := readGoalState(statePath)
+	if err != nil {
+		return err
+	}
+	if isPIDRunning(state.PID) {
+		return errors.New("goal is running; stop it before deleting")
+	}
+	logPath := filepath.Join(root, "temp", goalStatePrefix+id+".log")
+	if err := os.Remove(statePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.Remove(logPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func StopGoal(root, id string, pid int) (GoalMeta, error) {
@@ -354,6 +378,28 @@ func sanitizeGoalID(id string) string {
 		}
 	}
 	return b.String()
+}
+
+func goalCommandEnv(base []string, statePath string) []string {
+	env := append([]string{}, base...)
+	env = upsertEnv(env, "GOAL_STATE", statePath)
+	// Goal logs are transported through JSON and rendered by the browser as UTF-8.
+	// On Windows a detached Python process may otherwise inherit an ANSI/OEM code
+	// page and write non-UTF-8 bytes, which appears as mojibake in the Goal panel.
+	env = upsertEnv(env, "PYTHONIOENCODING", "utf-8")
+	env = upsertEnv(env, "PYTHONUTF8", "1")
+	return env
+}
+
+func upsertEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	for i, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			env[i] = prefix + value
+			return env
+		}
+	}
+	return append(env, prefix+value)
 }
 
 func goalPython(root string) string {

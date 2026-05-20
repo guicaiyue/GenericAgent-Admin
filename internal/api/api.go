@@ -65,6 +65,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/goals/start", s.goalsStart)
 	mux.HandleFunc("/api/goals/list", s.goalsList)
 	mux.HandleFunc("/api/goals/stop", s.goalsStop)
+	mux.HandleFunc("/api/goals/delete", s.goalsDelete)
 	mux.HandleFunc("/api/goals/output", s.goalsOutput)
 	mux.HandleFunc("/api/config", s.configHandler)
 	mux.HandleFunc("/api/setup/env", s.setupEnv)
@@ -247,6 +248,28 @@ func (s *Server) goalsStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "goal": meta})
+}
+
+
+func (s *Server) goalsDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if r.Method == http.MethodDelete {
+		req.ID = r.URL.Query().Get("id")
+	} else if err := decode(r, &req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	if err := ga.DeleteGoal(s.CfgStore.Cfg.GARoot, req.ID); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "id": req.ID})
 }
 
 func (s *Server) goalsOutput(w http.ResponseWriter, r *http.Request) {
