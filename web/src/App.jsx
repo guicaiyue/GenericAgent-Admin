@@ -113,8 +113,11 @@ export default function App() {
       }
       const [svc, ctrl, goalData] = await Promise.all([api('/api/services'), api('/api/ga/control'), api('/api/goals/list').catch(() => ({ goals: [] }))])
       const serviceList = Array.isArray(svc) ? svc : (svc.services || [])
-      setServices(serviceList); setControl(ctrl); setGoals(goalData.goals || [])
+      const goalItems = goalData.goals || []
+      setServices(serviceList); setControl(ctrl); setGoals(goalItems)
       const first = serviceList[0]?.name; if (!selected && first) setSelected(first)
+      const firstGoal = pickGoalId(goalItems, selectedGoal)
+      if (!selectedGoal && firstGoal) setSelectedGoal(firstGoal)
       await loadFiles(filePath)
     } catch (e) { setMsg(e.message) } finally { setBusy(false) }
   }
@@ -147,7 +150,11 @@ export default function App() {
   const toggleServiceAutostart = async (name, enabled) => { setBusy(true); try { const d = await api('/api/services/autostart', { method:'POST', body: JSON.stringify({ name, enabled }) }); setServices(d.services || []); setMsg(enabled ? t.enabled : t.disabled) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const loadServiceLogs = async (name = selected) => { if (!name) return; setSelected(name); setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) }
   const viewServiceLogs = async (name) => { setTab('logs'); await loadServiceLogs(name) }
-  const loadGoals = async () => { const d = await api('/api/goals/list'); setGoals(d.goals || []); return d.goals || [] }
+  const pickGoalId = (items = [], preferred = '') => {
+    if (preferred && items.some(g => g.id === preferred)) return preferred
+    return items.find(g => g.running)?.id || items[0]?.id || ''
+  }
+  const loadGoals = async () => { const d = await api('/api/goals/list'); const items = d.goals || []; setGoals(items); return items }
   const startGoal = async () => {
     setBusy(true); setMsg('')
     try {
@@ -213,13 +220,13 @@ export default function App() {
     }
   }
   useEffect(() => {
-    if (tab !== 'goals' || !goalAutoRefresh) return
+    if (tab !== 'goals') return
     const refreshGoals = async () => {
       if (goalRefreshBusy.current) return
       goalRefreshBusy.current = true
       try {
         const gs = await loadGoals()
-        const active = selectedGoal || (gs || []).find(g => g.running)?.id || (gs || [])[0]?.id
+        const active = pickGoalId(gs, selectedGoal)
         if (active) await loadGoalOutput(active)
       } catch (e) {
         setMsg(e.message)
@@ -228,6 +235,7 @@ export default function App() {
       }
     }
     refreshGoals()
+    if (!goalAutoRefresh) return
     const timer = setInterval(refreshGoals, 3000)
     return () => clearInterval(timer)
   }, [tab, selectedGoal, goalOutputBytes, goalAutoRefresh])
