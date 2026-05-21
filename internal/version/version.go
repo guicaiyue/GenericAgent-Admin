@@ -294,22 +294,7 @@ func applyLatest(ctx context.Context, progress func(stage, msg string, pct int, 
 	}
 	script := filepath.Join(work, "apply-update.cmd")
 	backup := exe + ".bak"
-	content := fmt.Sprintf(`@echo off
-setlocal
-set OLD=%q
-set NEW=%q
-set BAK=%q
-for /L %%%%i in (1,1,30) do (
-  move /Y "%%OLD%%" "%%BAK%%" >nul 2>nul && goto replaced
-  timeout /t 1 /nobreak >nul
-)
-echo failed to replace %%OLD%%
-exit /b 1
-:replaced
-move /Y "%%NEW%%" "%%OLD%%" >nul
-if errorlevel 1 (move /Y "%%BAK%%" "%%OLD%%" >nul 2>nul & exit /b 1)
-start "" "%%OLD%%"
-`, exe, newExe, backup)
+	content := windowsUpdateScript(exe, newExe, backup)
 	if err := os.WriteFile(script, []byte(content), 0600); err != nil {
 		return ApplyResult{}, err
 	}
@@ -321,6 +306,25 @@ start "" "%%OLD%%"
 	}
 	go func() { time.Sleep(500 * time.Millisecond); os.Exit(0) }()
 	return ApplyResult{OK: true, Message: "update downloaded; restarting", Script: script}, nil
+}
+
+func windowsUpdateScript(oldExe, newExe, backup string) string {
+	return fmt.Sprintf(`@echo off
+setlocal
+set "OLD=%s"
+set "NEW=%s"
+set "BAK=%s"
+for /L %%%%i in (1,1,30) do (
+  move /Y "%%OLD%%" "%%BAK%%" >nul 2>nul && goto replaced
+  timeout /t 1 /nobreak >nul
+)
+echo failed to replace %%OLD%%
+exit /b 1
+:replaced
+move /Y "%%NEW%%" "%%OLD%%" >nul
+if errorlevel 1 (move /Y "%%BAK%%" "%%OLD%%" >nul 2>nul & exit /b 1)
+start "" "%%OLD%%"
+`, oldExe, newExe, backup)
 }
 
 func fetchLatest(ctx context.Context) (*Release, error) {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +87,27 @@ func TestVerifySHA256(t *testing.T) {
 	}
 	if err := verifySHA256(file, sumFile); err == nil {
 		t.Fatal("expected mismatch")
+	}
+}
+
+func TestWindowsUpdateScriptQuotesVariablesSafely(t *testing.T) {
+	script := windowsUpdateScript(`C:\Program Files\GA Admin\ga-admin.exe`, `C:\Temp\new ga-admin.exe`, `C:\Program Files\GA Admin\ga-admin.exe.bak`)
+	want := []string{
+		`set "OLD=C:\Program Files\GA Admin\ga-admin.exe"`,
+		`set "NEW=C:\Temp\new ga-admin.exe"`,
+		`set "BAK=C:\Program Files\GA Admin\ga-admin.exe.bak"`,
+		`move /Y "%OLD%" "%BAK%"`,
+		`move /Y "%NEW%" "%OLD%"`,
+	}
+	for _, w := range want {
+		if !strings.Contains(script, w) {
+			t.Fatalf("script missing %q in:\n%s", w, script)
+		}
+	}
+	bad := []string{`set OLD=`, `set NEW=`, `set BAK=`, `""C:\`}
+	for _, b := range bad {
+		if strings.Contains(script, b) {
+			t.Fatalf("script contains unsafe quoting %q in:\n%s", b, script)
+		}
 	}
 }
