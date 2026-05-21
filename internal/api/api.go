@@ -56,6 +56,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/ga/inventory", s.gaInventory)
 	mux.HandleFunc("/api/ga/health", s.gaHealth)
 	mux.HandleFunc("/api/ga/control", s.gaControl)
+	mux.HandleFunc("/api/ga/git-update", s.gaGitUpdate)
 	mux.HandleFunc("/api/files/list", s.filesList)
 	mux.HandleFunc("/api/files/read", s.filesRead)
 	mux.HandleFunc("/api/files/write", s.filesWrite)
@@ -609,6 +610,63 @@ func chooseDirectory(start string) (string, error) {
 		return strings.TrimSpace(string(out)), nil
 	}
 	return "", fmt.Errorf("directory picker is only supported on Windows in this build; please paste the path manually")
+}
+
+func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	if err != nil {
+		if text == "" {
+			text = err.Error()
+		}
+		return text, fmt.Errorf("git %s failed: %w", strings.Join(args, " "), err)
+	}
+	return text, nil
+}
+
+func (s *Server) gaGitUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	root := strings.TrimSpace(s.CfgStore.Cfg.GARoot)
+	if root == "" {
+		bad(w, 400, "ga_root is not configured")
+		return
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	if st, err := os.Stat(filepath.Join(abs, ".git")); err != nil || !st.IsDir() {
+		bad(w, 400, "GA root is not a git repository")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	before, _ := runGitCommand(ctx, abs, "rev-parse", "--short", "HEAD")
+	branch, _ := runGitCommand(ctx, abs, "branch", "--show-current")
+	statusBefore, _ := runGitCommand(ctx, abs, "status", "--short")
+	fetchOut, err := runGitCommand(ctx, abs, "fetch", "--all", "--prune")
+	if err != nil {
+		bad(w, 500, strings.TrimSpace(fetchOut+"\n"+err.Error()))
+		return
+	}
+	pullOut, err := runGitCommand(ctx, abs, "pull", "--ff-only")
+	if err != nil {
+		bad(w, 500, strings.TrimSpace(pullOut+"\n"+err.Error()))
+		return
+	}
+	after, _ := runGitCommand(ctx, abs, "rev-parse", "--short", "HEAD")
+	statusAfter, _ := runGitCommand(ctx, abs, "status", "--short")
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "root": abs, "branch": branch, "before": before, "after": after,
+		"changed": before != after, "status_before": statusBefore, "status_after": statusAfter,
+		"fetch": fetchOut, "pull": pullOut,
+	})
 }
 
 func (s *Server) setupValidate(w http.ResponseWriter, r *http.Request) {
