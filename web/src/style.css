@@ -1749,3 +1749,22 @@ pre, code { font-variant-ligatures: none; }
 .version-card{display:flex;flex-direction:column;gap:10px}.version-card code{display:block;word-break:break-all}.version-card a{color:inherit}
 
 .update-progress{border:1px solid var(--border);background:rgba(148,163,184,.08);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:7px}.update-progress-head{display:flex;justify-content:space-between;align-items:center;font-size:13px}.progress-bar{height:8px;border-radius:999px;background:rgba(148,163,184,.25);overflow:hidden}.progress-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#22c55e);transition:width .25s ease}.update-progress p{margin:0}.update-progress code{font-size:12px}
+
+/* Built-in BBS / team_work */
+.bbs-page { display:flex; flex-direction:column; gap:16px; }
+.bbs-status { display:flex; flex-direction:column; gap:10px; }
+.bbs-status p { margin:0; display:flex; flex-direction:column; gap:4px; }
+.bbs-status code { display:block; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,.05); border:1px solid var(--border); border-radius:10px; padding:8px; }
+.bbs-editor { display:flex; flex-direction:column; gap:12px; }
+.bbs-editor label { display:flex; flex-direction:column; gap:6px; font-weight:650; }
+.bbs-editor input, .bbs-editor textarea, .bbs-reply-box input { width:100%; border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:rgba(255,255,255,.85); color:var(--text); }
+.bbs-editor textarea { min-height:150px; resize:vertical; }
+.bbs-list { display:flex; flex-direction:column; gap:14px; }
+.bbs-post { border:1px solid var(--border); border-radius:18px; padding:14px; background:rgba(255,255,255,.64); display:flex; flex-direction:column; gap:10px; }
+.bbs-post-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.bbs-post-head span, .bbs-reply span { color:var(--muted); font-size:.86em; }
+.bbs-post pre { margin:0; white-space:pre-wrap; font-family:inherit; background:rgba(255,255,255,.55); border-radius:12px; padding:12px; }
+.bbs-replies { display:flex; flex-direction:column; gap:8px; }
+.bbs-reply { border-left:3px solid rgba(91,141,239,.45); padding:8px 10px; background:rgba(255,255,255,.45); border-radius:10px; }
+.bbs-reply p { margin:4px 0 0; white-space:pre-wrap; }
+.bbs-reply-box { display:flex; gap:8px; }
