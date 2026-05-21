@@ -374,7 +374,7 @@ export default function App() {
       {tab==='memory' && <section><div className="grid2"><Panel title={t.lists.memory}><EntryList items={[inv.memory?.insight, inv.memory?.facts].filter(Boolean)} empty={t.empty}/></Panel><Panel title={t.lists.sop}><EntryList items={[...(inv.memory?.sops||[]), ...(inv.memory?.utils||[])]} empty={t.empty}/></Panel></div></section>}
       {tab==='channels' && <section className="channels-page"><div className="stats"><Stat label={t.lists.frontendServices} value={frontendSvcs.length} icon={<Server/>}/><Stat label={t.running} value={frontendSvcs.filter(s=>s.running).length} icon={<CheckCircle2/>}/><Stat label={t.stopped} value={frontendSvcs.filter(s=>!s.running).length} icon={<XCircle/>}/></div><Panel title={t.lists.frontendServices} className="channels-panel"><p className="muted">{t.desc.channels}</p><ChannelServiceTable services={frontendSvcs} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/></Panel></section>}
       {tab==='autonomous' && <section><div className="grid2"><Panel title={t.lists.reflectServices}>{reflectSvcs.length ? reflectSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>) : <p className="muted">{t.hints.noReflect}</p>}</Panel><Panel title={t.lists.reflectScripts}><EntryList items={inv.reflect || []} empty={t.hints.noReflect}/></Panel></div><Panel title={t.lists.recentReports}><div className="report-list">{(inv.autonomous_reports || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path, 'autonomous')}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifactTitle?.includes('autonomous_reports') ? (scheduleArtifact || t.empty) : t.empty}</pre></Panel></section>}
-      {tab==='goals' && <GoalsPage t={t} goals={goals} objective={goalObjective} setObjective={setGoalObjective} budget={goalBudget} setBudget={setGoalBudget} maxTurns={goalMaxTurns} setMaxTurns={setGoalMaxTurns} llmNo={goalLLMNo} setLLMNo={setGoalLLMNo} outputBytes={goalOutputBytes} setOutputBytes={setGoalOutputBytes} autoRefresh={goalAutoRefresh} setAutoRefresh={setGoalAutoRefresh} selected={selectedGoal} output={goalOutput} outputMeta={goalOutputMeta} busy={busy} onStart={startGoal} onStop={stopGoal} onDelete={deleteGoal} onRefresh={loadGoals} onOutput={loadGoalOutput} onClearOutput={()=>{ goalOutputSeq.current += 1; setGoalOutput(''); setGoalOutputMeta(null); setMsg(t.hints.goalOutputCleared) }} onFile={readFile} setMsg={setMsg}/>}
+      {tab==='goals' && <GoalsPage t={t} goals={goals} objective={goalObjective} setObjective={setGoalObjective} budget={goalBudget} setBudget={setGoalBudget} maxTurns={goalMaxTurns} setMaxTurns={setGoalMaxTurns} llmNo={goalLLMNo} setLLMNo={setGoalLLMNo} outputBytes={goalOutputBytes} setOutputBytes={setGoalOutputBytes} autoRefresh={goalAutoRefresh} setAutoRefresh={setGoalAutoRefresh} selected={selectedGoal} output={goalOutput} outputMeta={goalOutputMeta} busy={busy} onStart={startGoal} onStop={stopGoal} onDelete={deleteGoal} onRefresh={loadGoals} onOutput={loadGoalOutput} onClearOutput={()=>{ goalOutputSeq.current += 1; setGoalOutput(''); setGoalOutputMeta(null); setMsg(t.hints.goalOutputCleared) }} setMsg={setMsg}/>}
       {tab==='models' && <Models t={t} profiles={profiles} setProfiles={setProfiles} patchProfile={patchProfile} importModels={importModels} previewModels={previewModels} saveModels={saveModels} modelPreview={modelPreview}/>} 
       {tab==='logs' && <section className="logs-page"><div className="logs-layout"><Panel title={t.lists.processes} className="logs-side"><div className="logs-toolbar"><label>{t.hints.tailLines}<input type="number" min="20" max="2000" value={tailLines} onChange={e=>setTailLines(Number(e.target.value) || 200)}/></label><button disabled={!selected} onClick={()=>loadServiceLogs(selected)}><RefreshCw size={14}/>{t.refresh}</button></div><div className="logs-service-list">{services.map(s => <button className={selected===s.name?'log-service active':'log-service'} key={s.name} onClick={()=>loadServiceLogs(s.name)}><span className={s.running?'dot running':'dot'}></span><span className="log-service-name">{s.name}</span><small>{s.kind}{s.pid ? ` · PID ${s.pid}` : ''}</small></button>)}</div></Panel><Panel title={`Logs · ${selected || '-'}`} className="log-panel"><div className="log-head"><div>{selected && <p className="muted log-command" title={services.find(s=>s.name===selected)?.command?.join(' ')}>{services.find(s=>s.name===selected)?.command?.join(' ')}</p>}<span className="log-count">{logs.length} lines · UTF-8</span></div><div className="actions"><button disabled={!selected || services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'start')}><Play size={14}/>{t.start}</button><button disabled={!selected || !services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'stop')}><Square size={14}/>{t.stop}</button></div></div><pre className="log-view">{logs.join('\n') || t.hints.noLogs}</pre></Panel></div></section>}
     </main>
@@ -468,10 +468,11 @@ const goalBudgetPercent = (g) => {
   return clampPercent((elapsed / total) * 100)
 }
 
-function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTurns, setMaxTurns, llmNo, setLLMNo, outputBytes, setOutputBytes, autoRefresh, setAutoRefresh, selected, output, outputMeta, busy, onStart, onStop, onDelete, onRefresh, onOutput, onClearOutput, onFile, setMsg }) {
+function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTurns, setMaxTurns, llmNo, setLLMNo, outputBytes, setOutputBytes, autoRefresh, setAutoRefresh, selected, output, outputMeta, busy, onStart, onStop, onDelete, onRefresh, onOutput, onClearOutput, setMsg }) {
   const goalList = goals || []
   const running = goalList.filter(g => g.running).length
   const selectedGoal = goalList.find(g => g.id === selected) || outputMeta?.goal || null
+  const [goalTab, setGoalTab] = useState('runs')
   const outputBadges = []
   if (outputMeta?.error) outputBadges.push(`${t.error}: ${outputMeta.error}`)
   if (outputMeta?.truncated) outputBadges.push(`${t.hints.goalOutputTruncated}: ${formatBytes(outputMeta.bytesReturned)}/${formatBytes(outputMeta.totalBytes)}`)
@@ -488,11 +489,12 @@ function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTu
   const selectedTurnPct = selectedGoal ? goalTurnPercent(selectedGoal) : 0
   const selectedBudgetPct = selectedGoal ? goalBudgetPercent(selectedGoal) : 0
 
-
   const copyOutput = async () => {
     try { await copyText(output || ''); setMsg(t.hints.goalOutputCopied) }
     catch (e) { setMsg(e.message) }
   }
+  const openOutput = (id) => { onOutput(id); setGoalTab('output') }
+  const showStatePath = (path) => { if (path) setMsg(`${t.fields.stateFile}: ${path}`) }
 
   return <section className="goals-page">
     <div className="stats schedule-stats goal-stats">
@@ -501,32 +503,52 @@ function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTu
       <div className="stat"><Terminal/><span>reflect/goal_mode.py</span><b>{running ? t.running : t.ready}</b></div>
     </div>
 
-    <div className="goal-shell">
-      <div className="goal-left">
-        <Panel title={t.fields.startGoalMode} className="goal-start-panel">
-          <p className="muted">{t.desc.goals}</p>
-          <label className="goal-field">{t.fields.objective}
-            <textarea className="goal-objective" value={objective} maxLength={16384} onChange={e=>setObjective(e.target.value)} placeholder={t.fields.goalPlaceholder}/>
-          </label>
-          <div className="form-grid compact-form goal-params">
-            <label>{t.fields.budgetMinutes}<input type="number" min="1" max="43200" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
-            <label>{t.fields.maxTurns}<input type="number" min="0" max="10000" value={maxTurns} onChange={e=>setMaxTurns(e.target.value)}/></label>
-            <label>{t.fields.llmNo}<input type="number" min="0" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
-          </div>
-          <div className="actions goal-start-actions">
-            <button className="primary" disabled={busy || !objective.trim()} onClick={onStart}><Play size={14}/>{t.start}</button>
-            <button disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{t.refresh}</button>
-          </div>
-        </Panel>
+    <div className="goal-tabs" role="tablist" aria-label={t.nav.goals}>
+      <button role="tab" aria-selected={goalTab==='runs'} className={goalTab==='runs' ? 'active' : ''} onClick={()=>setGoalTab('runs')}>{t.fields.goalRuns}<span>{goalList.length}</span></button>
+      <button role="tab" aria-selected={goalTab==='start'} className={goalTab==='start' ? 'active' : ''} onClick={()=>setGoalTab('start')}>{t.fields.startGoalMode}</button>
+      <button role="tab" aria-selected={goalTab==='output'} className={goalTab==='output' ? 'active' : ''} onClick={()=>setGoalTab('output')}>{t.fields.outputTail}<span>{selected || '-'}</span></button>
+    </div>
 
-        <Panel title={t.fields.goalRuns} className="goals-list-panel">
-          <div className="goal-list clean-list">
-            {goalList.length ? goalList.map(g => <GoalRunCard key={g.id} g={g} t={t} selected={selected} onOutput={onOutput} onFile={onFile} onStop={onStop} onDelete={onDelete}/>) : <p className="muted">{t.empty}</p>}
-          </div>
-        </Panel>
+    {goalTab==='start' && <Panel title={t.fields.startGoalMode} className="goal-start-panel goal-tab-panel">
+      <p className="muted">{t.desc.goals}</p>
+      <label className="goal-field">{t.fields.objective}
+        <textarea className="goal-objective" value={objective} maxLength={16384} onChange={e=>setObjective(e.target.value)} placeholder={t.fields.goalPlaceholder}/>
+      </label>
+      <div className="form-grid compact-form goal-params">
+        <label>{t.fields.budgetMinutes}<input type="number" min="1" max="43200" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
+        <label>{t.fields.maxTurns}<input type="number" min="0" max="10000" value={maxTurns} onChange={e=>setMaxTurns(e.target.value)}/></label>
+        <label>{t.fields.llmNo}<input type="number" min="0" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
       </div>
+      <div className="actions goal-start-actions">
+        <button className="primary" disabled={busy || !objective.trim()} onClick={onStart}><Play size={14}/>{t.start}</button>
+        <button disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{t.refresh}</button>
+      </div>
+    </Panel>}
 
-      <Panel title={`${t.fields.outputTail} · ${selected || '-'}`} className="log-panel goal-output-panel">
+    {goalTab==='runs' && <Panel title={t.fields.goalRuns} className="goals-list-panel goal-tab-panel">
+      <div className="goal-list clean-list goal-list-tabbed">
+        {goalList.length ? goalList.map(g => <GoalRunCard key={g.id} g={g} t={t} selected={selected} onOutput={openOutput} onState={showStatePath} onStop={onStop} onDelete={onDelete}/>) : <p className="muted">{t.empty}</p>}
+      </div>
+    </Panel>}
+
+    {goalTab==='output' && <Panel title={`${t.fields.outputTail} · ${selected || '-'}`} className="log-panel goal-output-panel goal-tab-panel">
+      {selectedGoal ? <div className="goal-focus-card">
+        <div className="goal-focus-main">
+          <div className="goal-summary-head"><b>{selectedGoal.id}</b><span className={selectedGoal.running ? 'ok' : ''}>{selectedGoal.status || (selectedGoal.running ? t.running : t.fields.notRunning)}</span></div>
+          <p>{selectedGoal.objective || t.empty}</p>
+          <div className="goal-progress summary-progress"><span title={`${t.fields.turn} ${Math.round(selectedTurnPct)}%`}><i style={{width: `${selectedTurnPct}%`}} /></span><span title={`${t.fields.elapsed} ${Math.round(selectedBudgetPct)}%`}><i style={{width: `${selectedBudgetPct}%`}} /></span></div>
+        </div>
+        <div className="goal-summary-grid goal-focus-grid">
+          <span>{t.fields.turn}: {selectedGoal.turns_used || 0}/{selectedGoal.max_turns || '-'}</span>
+          <span>{t.fields.elapsed}: {formatDuration(selectedGoal.elapsed_seconds)}</span>
+          <span>{t.fields.remaining}: {formatDuration(selectedGoal.remaining_seconds)}</span>
+          <span>{t.fields.updated}: {formatGoalTime(selectedGoal.mod_time)}</span>
+        </div>
+        <div className="goal-summary-files"><button disabled={!selectedGoal.state_file} onClick={()=>showStatePath(selectedGoal.state_file)}>{t.fields.stateFile}</button><button disabled={!selectedGoal.id || selectedGoal.missing_log} onClick={()=>openOutput(selectedGoal.id)}>{t.fields.logFile}</button></div>
+      </div> : <div className="goal-focus-empty">{t.empty}</div>}
+
+      <details className="goal-controls-details">
+        <summary>{t.fields.maxBytes} / {t.fields.outputLimit} · {outputLimitLabel}</summary>
         <div className="goal-toolbar">
           <label className="inline-field">{t.fields.maxBytes}
             <input type="number" min="0" max="1048576" step="4096" value={outputBytes} onChange={e=>setOutputBytes(e.target.value)}/>
@@ -542,33 +564,17 @@ function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTu
           <button disabled={!output} onClick={copyOutput}><Copy size={14}/>{t.copy}</button>
           <button disabled={!output && !outputMeta} onClick={onClearOutput}><XCircle size={14}/>{t.clear}</button>
         </div>
+      </details>
 
-        <div className="goal-output-stats">
-          <span>{t.fields.outputShown}: {formatBytes(outputBytesShown)} / {formatBytes(outputTotalBytes)}</span>
-          <span>{t.fields.outputLines}: {outputLinesShown}{outputTotalLines !== outputLinesShown ? ` / ${outputTotalLines}` : ''}</span>
-          <span>{t.fields.outputLimit}: {outputLimitLabel}</span>
-        </div>
-        {outputBadges.length > 0 && <div className="goal-output-meta">{outputBadges.map(m => <span key={m}>{m}</span>)}</div>}
-        {selectedGoal && <div className="goal-output-summary">
-          <div className="goal-summary-head"><b>{selectedGoal.id}</b><span className={selectedGoal.running ? 'ok' : ''}>{selectedGoal.status || (selectedGoal.running ? t.running : t.fields.notRunning)}</span></div>
-          <p>{selectedGoal.objective || t.empty}</p>
-          <div className="goal-summary-grid">
-            <span>{t.fields.turn}: {selectedGoal.turns_used || 0}/{selectedGoal.max_turns || '-'}</span>
-            <span>{t.fields.elapsed}: {formatDuration(selectedGoal.elapsed_seconds)}</span>
-            <span>{t.fields.remaining}: {formatDuration(selectedGoal.remaining_seconds)}</span>
-            <span>{t.fields.started}: {formatGoalTime(selectedGoal.start_time ? selectedGoal.start_time * 1000 : 0)}</span>
-            <span>{t.fields.updated}: {formatGoalTime(selectedGoal.mod_time)}</span>
-            <span>{t.fields.pid}: {selectedGoal.pid || '-'}</span>
-          </div>
-          <div className="goal-progress summary-progress"><span title={`${t.fields.turn} ${Math.round(selectedTurnPct)}%`}><i style={{width: `${selectedTurnPct}%`}} /></span><span title={`${t.fields.elapsed} ${Math.round(selectedBudgetPct)}%`}><i style={{width: `${selectedBudgetPct}%`}} /></span></div>
-          <div className="goal-summary-files"><button disabled={!selectedGoal.state_file} onClick={()=>onFile(selectedGoal.state_file)}>{t.fields.stateFile}</button><button disabled={!selectedGoal.log_file || selectedGoal.missing_log} onClick={()=>onFile(selectedGoal.log_file)}>{t.fields.logFile}</button></div>
-        </div>}
-        <GoalChatView output={output} empty={t.empty} />
-      </Panel>
-    </div>
+      <div className="goal-output-stats compact">
+        <span>{t.fields.outputShown}: {formatBytes(outputBytesShown)} / {formatBytes(outputTotalBytes)}</span>
+        <span>{t.fields.outputLines}: {outputLinesShown}{outputTotalLines !== outputLinesShown ? ` / ${outputTotalLines}` : ''}</span>
+      </div>
+      {outputBadges.length > 0 && <div className="goal-output-meta">{outputBadges.map(m => <span key={m}>{m}</span>)}</div>}
+      <GoalChatView output={output} empty={t.empty} />
+    </Panel>}
   </section>
 }
-
 
 function parseGoalOutput(output) {
   const text = output || ''
@@ -629,7 +635,7 @@ function GoalChatView({ output, empty }) {
   </div>
 }
 
-function GoalRunCard({ g, t, selected, onOutput, onFile, onStop, onDelete }) {
+function GoalRunCard({ g, t, selected, onOutput, onState, onStop, onDelete }) {
   const turnPct = goalTurnPercent(g)
   const budgetPct = goalBudgetPercent(g)
   return <div className={`goal-row ${g.running ? 'running' : ''} ${selected===g.id ? 'selected' : ''}`}>
@@ -649,8 +655,8 @@ function GoalRunCard({ g, t, selected, onOutput, onFile, onStop, onDelete }) {
     </button>
     <div className="actions goal-row-actions">
       <button onClick={()=>onOutput(g.id)}><Eye size={14}/>{t.read}</button>
-      <button disabled={!g.state_file} onClick={()=>onFile(g.state_file)}>{t.fields.stateFile}</button>
-      <button disabled={!g.log_file || g.missing_log} onClick={()=>onFile(g.log_file)}>{t.fields.logFile}</button>
+      <button disabled={!g.state_file} onClick={()=>onState(g.state_file)}>{t.fields.stateFile}</button>
+      <button disabled={!g.id || g.missing_log} onClick={()=>onOutput(g.id)}>{t.fields.logFile}</button>
       <button disabled={!g.running || !g.pid} onClick={()=>onStop(g)}><Square size={14}/>{t.stop}</button>
       <button className="danger" disabled={!!g.running} title={g.running ? t.hints.goalDeleteRunning : t.hints.goalDeleteConfirm.replace('{id}', g.id || '-')} onClick={()=>onDelete?.(g)}><Trash2 size={14}/>{t.delete}</button>
     </div>
