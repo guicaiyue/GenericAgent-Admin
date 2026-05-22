@@ -654,8 +654,23 @@ func startChatWorker(cfg config.AppConfig, sid string) (*chatWorker, error) {
 		return nil, err
 	}
 	worker := &chatWorker{SID: sid, Cmd: cmd, Stdin: stdin, Stdout: stdout, Stderr: stderr}
-	go io.Copy(io.Discard, stderr)
+	go logChatWorkerStderr(sid, stderr)
 	return worker, nil
+}
+
+func logChatWorkerStderr(sid string, stderr io.Reader) {
+	scanner := bufio.NewScanner(stderr)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			fmt.Fprintf(os.Stderr, "[chat_worker:%s] %s\n", sid, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "[chat_worker:%s] stderr read error: %v\n", sid, err)
+	}
 }
 
 func pythonEnvWithAdminProxy(cfg config.AppConfig, extra ...string) []string {

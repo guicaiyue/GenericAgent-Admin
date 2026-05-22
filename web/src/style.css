@@ -2167,3 +2167,14 @@ pre, code { font-variant-ligatures: none; }
   .oa-composer{border-radius:20px !important; padding:9px 10px 8px !important;}
   .oa-composer .oa-composer-model{max-width:100% !important;}
 }
+
+
+.tmwd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.tmwd-head p { margin: 6px 0 0; }
+.tmwd-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 14px; }
+.status-pill { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--surface-muted); }
+.status-pill span { grid-row: span 2; width: 22px; height: 22px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; }
+.status-pill.ok span { color: #fff; background: var(--green); }
+.status-pill.bad span { color: #fff; background: var(--red); }
+.status-pill small { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
+.tmwd-paths { margin-top: 12px; max-height: 96px; font-size: 12px; }

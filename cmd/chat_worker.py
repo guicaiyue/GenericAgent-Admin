@@ -11,6 +11,52 @@ def _force_utf8_stdio():
             pass
 
 
+def _venv_paths_for(root: Path):
+    venvs = [root / '.venv', root / 'venv']
+    for venv in venvs:
+        if not venv.exists():
+            continue
+        scripts = venv / ('Scripts' if os.name == 'nt' else 'bin')
+        sites = []
+        if os.name == 'nt':
+            sites.append(venv / 'Lib' / 'site-packages')
+        else:
+            lib = venv / 'lib'
+            try:
+                sites.extend(sorted(lib.glob('python*/site-packages')))
+            except Exception:
+                pass
+        sites = [p.resolve() for p in sites if p.exists()]
+        if sites:
+            return venv.resolve(), scripts.resolve(), sites
+    return None, None, []
+
+
+def _inject_ga_venv(root: Path):
+    """Make GA virtualenv packages visible even if launched by bare uv/system Python.
+
+    Admin chat is normally started with GA_ROOT and root/.venv Python.  If a
+    nested/old launch uses a bare uv Python, importing agentmain eventually
+    fails on dependencies such as requests/TMWebDriver deps.  Avoid re-exec on
+    Windows (can crash and risks stdin handling); inject the venv site-packages
+    before importing GA modules instead.
+    """
+    venv, scripts, sites = _venv_paths_for(root)
+    if not sites:
+        return
+    os.environ.setdefault('VIRTUAL_ENV', str(venv))
+    if scripts:
+        path = os.environ.get('PATH') or ''
+        sp = str(scripts)
+        parts = path.split(os.pathsep) if path else []
+        if not parts or parts[0].lower() != sp.lower():
+            os.environ['PATH'] = sp + (os.pathsep + path if path else '')
+    for site in reversed(sites):
+        s = str(site)
+        if s not in sys.path:
+            sys.path.insert(0, s)
+
+
 _force_utf8_stdio()
 
 
@@ -57,6 +103,7 @@ def handle_request(agent, worker, req):
 
 def main():
     root = Path(os.environ.get('GA_ROOT') or '.').resolve()
+    _inject_ga_venv(root)
     first = True
     agent = None
     worker = None

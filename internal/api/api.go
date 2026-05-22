@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -58,6 +59,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/ga/control", s.gaControl)
 	mux.HandleFunc("/api/ga/git-update", s.gaGitUpdate)
 	mux.HandleFunc("/api/ga/git-status", s.gaGitStatus)
+	mux.HandleFunc("/api/tmwebdriver/status", s.tmwebdriverStatus)
 	// Built-in BBS service compatible with GA reflect/agent_team_worker.py
 	mux.HandleFunc("/api/bbs/status", s.bbsStatus)
 	mux.HandleFunc("/api/bbs/config", s.bbsConfigHandler)
@@ -210,6 +212,153 @@ func (s *Server) gaHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) gaControl(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ga.BuildControlPlane(s.CfgStore.Cfg.GARoot))
+}
+
+type tmwebdriverCheck struct {
+	Name   string `json:"name"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail,omitempty"`
+}
+
+type tmwebdriverStatusResponse struct {
+	OK             bool               `json:"ok"`
+	BrowserRunning bool               `json:"browser_running"`
+	PortListening  bool               `json:"port_listening"`
+	ExtensionFound bool               `json:"extension_found"`
+	Port           int                `json:"port"`
+	ExtensionPaths []string           `json:"extension_paths,omitempty"`
+	Checks         []tmwebdriverCheck `json:"checks"`
+	Recommendation string             `json:"recommendation,omitempty"`
+	CheckedAt      string             `json:"checked_at"`
+}
+
+func (s *Server) tmwebdriverStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	st := buildTMWebDriverStatus()
+	writeJSON(w, st)
+}
+
+func buildTMWebDriverStatus() tmwebdriverStatusResponse {
+	const port = 18766
+	browserRunning, browserDetail := detectChromeRunning()
+	portListening, portDetail := detectTCPListening("127.0.0.1", port, 700*time.Millisecond)
+	extFound, extPaths, extDetail := detectTMWebDriverExtension()
+	st := tmwebdriverStatusResponse{
+		OK:             browserRunning && portListening && extFound,
+		BrowserRunning: browserRunning,
+		PortListening:  portListening,
+		ExtensionFound: extFound,
+		Port:           port,
+		ExtensionPaths: extPaths,
+		CheckedAt:      time.Now().Format(time.RFC3339),
+		Checks: []tmwebdriverCheck{
+			{Name: "browser_process", OK: browserRunning, Detail: browserDetail},
+			{Name: "ws_master_port", OK: portListening, Detail: portDetail},
+			{Name: "chrome_extension", OK: extFound, Detail: extDetail},
+		},
+	}
+	if st.OK {
+		st.Recommendation = "TMWebDriver 基础监控正常：浏览器进程、18766 master 端口和扩展均已检测到。"
+	} else if !browserRunning {
+		st.Recommendation = "未检测到 Chrome/Edge 浏览器进程；请先打开已安装 TMWebDriver 扩展的浏览器。"
+	} else if !portListening {
+		st.Recommendation = "未检测到 18766 端口监听；请重启 ljq_driver/TMWebDriver master。"
+	} else if !extFound {
+		st.Recommendation = "未在 Chrome Secure Preferences 中检测到 tmwd_cdp_bridge 扩展；请按 web_setup_sop 安装或修复扩展。"
+	}
+	return st
+}
+
+func detectTCPListening(host string, port int, timeout time.Duration) (bool, string) {
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return false, err.Error()
+	}
+	_ = conn.Close()
+	return true, "listening on " + addr
+}
+
+func detectChromeRunning() (bool, string) {
+	if runtime.GOOS == "windows" {
+		out, err := exec.Command("tasklist", "/FO", "CSV", "/NH").Output()
+		if err != nil {
+			return false, err.Error()
+		}
+		lower := bytes.ToLower(out)
+		if bytes.Contains(lower, []byte("chrome.exe")) || bytes.Contains(lower, []byte("msedge.exe")) {
+			return true, "chrome.exe/msedge.exe process found"
+		}
+		return false, "chrome.exe/msedge.exe process not found"
+	}
+	out, err := exec.Command("ps", "-A", "-o", "comm=").Output()
+	if err != nil {
+		return false, err.Error()
+	}
+	lower := bytes.ToLower(out)
+	if bytes.Contains(lower, []byte("chrome")) || bytes.Contains(lower, []byte("chromium")) || bytes.Contains(lower, []byte("msedge")) {
+		return true, "chrome/chromium/msedge process found"
+	}
+	return false, "chrome/chromium/msedge process not found"
+}
+
+func detectTMWebDriverExtension() (bool, []string, string) {
+	candidates := chromeSecurePreferencePaths()
+	var paths []string
+	var checked []string
+	for _, p := range candidates {
+		checked = append(checked, p)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		lower := strings.ToLower(string(b))
+		if strings.Contains(lower, "tmwd_cdp_bridge") {
+			paths = append(paths, p)
+		}
+	}
+	if len(paths) > 0 {
+		return true, paths, fmt.Sprintf("found in %d profile(s)", len(paths))
+	}
+	if len(checked) == 0 {
+		return false, nil, "no known Chrome profile paths"
+	}
+	return false, nil, "not found in checked Secure Preferences"
+}
+
+func chromeSecurePreferencePaths() []string {
+	var roots []string
+	if runtime.GOOS == "windows" {
+		local := os.Getenv("LOCALAPPDATA")
+		if local != "" {
+			roots = append(roots, filepath.Join(local, "Google", "Chrome", "User Data"), filepath.Join(local, "Microsoft", "Edge", "User Data"))
+		}
+	} else {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			roots = append(roots, filepath.Join(home, ".config", "google-chrome"), filepath.Join(home, ".config", "chromium"), filepath.Join(home, ".config", "microsoft-edge"), filepath.Join(home, "Library", "Application Support", "Google", "Chrome"))
+		}
+	}
+	var out []string
+	for _, root := range roots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if name == "Default" || strings.HasPrefix(name, "Profile ") {
+				out = append(out, filepath.Join(root, name, "Secure Preferences"))
+			}
+		}
+	}
+	return out
 }
 
 func (s *Server) scheduleTasks(w http.ResponseWriter, r *http.Request) {
