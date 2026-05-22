@@ -62,6 +62,10 @@ func BuildControlPlane(root string) ControlPlane {
 		cp.Capabilities = append(cp.Capabilities, Capability{Name: t.ID, Kind: "schedule", Path: t.Path, Ready: t.Status == "OK" && t.Enabled})
 	}
 	for name, state := range health.Checks {
+		if state == "optional_missing" {
+			cp.Risks = append(cp.Risks, RiskItem{Level: "info", Area: "models", Text: name + ": optional; configure models to generate it"})
+			continue
+		}
 		if state != "ok" {
 			cp.Readiness = append(cp.Readiness, RiskItem{Level: "error", Area: "health", Text: name + ": " + state})
 		}

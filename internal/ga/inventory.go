@@ -106,12 +106,22 @@ func BuildHealth(root string) Health {
 	checks := map[string]string{}
 	ok := true
 	for _, f := range inv.CoreFiles {
-		if f.Path == "agentmain.py" || f.Path == "llmcore.py" || f.Path == "mykey.py" {
+		switch f.Path {
+		case "agentmain.py", "llmcore.py":
 			if f.Exists {
 				checks[f.Path] = "ok"
 			} else {
 				checks[f.Path] = "missing"
 				ok = false
+			}
+		case "mykey.py":
+			// Official GA source does not ship private credentials. Treat mykey.py as
+			// an optional runtime model configuration file so first-time installs can
+			// open the admin UI and create/export it from the Models page.
+			if f.Exists {
+				checks[f.Path] = "ok"
+			} else {
+				checks[f.Path] = "optional_missing"
 			}
 		}
 	}

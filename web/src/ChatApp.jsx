@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Square, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 
 const api = async (url, options = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
@@ -276,8 +276,54 @@ function ToolCallBlock({ call, onAskReply }) {
   </div>
 }
 
+const splitTableRow = (line = '') => {
+  let src = String(line || '').trim()
+  if (src.startsWith('|')) src = src.slice(1)
+  if (src.endsWith('|') && !src.endsWith('\\|')) src = src.slice(0, -1)
+  const cells = []
+  let cur = ''
+  let escaped = false
+  for (const ch of src) {
+    if (escaped) { cur += ch; escaped = false; continue }
+    if (ch === '\\') { escaped = true; cur += ch; continue }
+    if (ch === '|') { cells.push(cur.trim().replace(/\\\|/g, '|')); cur = ''; continue }
+    cur += ch
+  }
+  cells.push(cur.trim().replace(/\\\|/g, '|'))
+  return cells
+}
+
+const parseTableAlign = (cell = '') => {
+  const s = String(cell || '').trim()
+  if (!/^:?-{3,}:?$/.test(s)) return null
+  if (s.startsWith(':') && s.endsWith(':')) return 'center'
+  if (s.endsWith(':')) return 'right'
+  return 'left'
+}
+
+const parseMarkdownTable = (block = '') => {
+  const lines = String(block || '').split('\n').filter(x => x.trim())
+  if (lines.length < 2 || !lines[0].includes('|') || !lines[1].includes('|')) return null
+  const head = splitTableRow(lines[0])
+  const aligns = splitTableRow(lines[1]).map(parseTableAlign)
+  if (!head.length || aligns.some(x => x === null) || aligns.length < head.length) return null
+  const rows = lines.slice(2).map(splitTableRow).filter(cells => cells.length > 0)
+  return { head, aligns, rows }
+}
+
+function renderMarkdownTable(table, key) {
+  return <div key={key} className="oa-table-wrap">
+    <table className="oa-md-table">
+      <thead><tr>{table.head.map((cell, i) => <th key={i} style={{ textAlign: table.aligns[i] || 'left' }}><InlineRichText text={cell} /></th>)}</tr></thead>
+      <tbody>{table.rows.map((row, r) => <tr key={r}>{table.head.map((_, c) => <td key={c} style={{ textAlign: table.aligns[c] || 'left' }}><InlineRichText text={row[c] || ''} /></td>)}</tr>)}</tbody>
+    </table>
+  </div>
+}
+
 function renderTextBlock(b, i) {
   const lines = b.split('\n')
+  const table = parseMarkdownTable(b)
+  if (table) return renderMarkdownTable(table, i)
   if (lines.every(x => /^\s*([-*]|\d+\.)\s+/.test(x)) && lines.length > 1) {
     return <ul key={i} className="oa-list">{lines.map((x,j)=><li key={j}><InlineRichText text={x.replace(/^\s*([-*]|\d+\.)\s+/, '')} /></li>)}</ul>
   }
@@ -428,6 +474,7 @@ export default function ChatApp() {
   const [editing, setEditing] = useState('')
   const [draftTitle, setDraftTitle] = useState('')
   const [attachments, setAttachments] = useState([])
+  const [queuedMessages, setQueuedMessages] = useState([])
   const [dragging, setDragging] = useState(false)
   const [autoFollow, setAutoFollow] = useState(true)
   const [showFollow, setShowFollow] = useState(false)
@@ -436,6 +483,8 @@ export default function ChatApp() {
   const fileRef = useRef(null)
   const promptRef = useRef(null)
   const streamAbortRef = useRef(null)
+  const runSeqRef = useRef(0)
+  const queuedRef = useRef([])
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
 
   const applyStreamEvent = (ev, pendingId, clientUserID = '') => {
@@ -634,6 +683,47 @@ export default function ChatApp() {
   }
 
   const removeAttachment = (id) => setAttachments(xs => xs.filter(x => x.id !== id))
+  const syncQueue = (next) => { queuedRef.current = next; setQueuedMessages(next) }
+  const popQueued = () => {
+    const [first, ...rest] = queuedRef.current
+    syncQueue(rest)
+    return first
+  }
+  const enqueueMessage = (item) => {
+    const next = [...queuedRef.current, { ...item, id:`q-${Date.now()}-${Math.random().toString(16).slice(2)}`, queuedAt:Date.now() }]
+    syncQueue(next)
+    setNotice(`已加入队列（${next.length} 条）。点击“引导”可中止当前回复并立即发送。`)
+  }
+  const removeQueued = (id) => {
+    syncQueue(queuedRef.current.filter(x => x.id !== id))
+  }
+  const editQueued = (id) => {
+    const item = queuedRef.current.find(x => x.id === id)
+    if (!item) return
+    syncQueue(queuedRef.current.filter(x => x.id !== id))
+    setPrompt(item.text || '')
+    setAttachments((item.files || []).map((f, i) => ({
+      id:`edit-img-${Date.now()}-${i}`,
+      name:f.name || `queued-${i + 1}.png`,
+      type:f.type || 'image/png',
+      size:f.size || 0,
+      dataURL:f.dataURL || '',
+    })).filter(f => f.dataURL))
+    setNotice('已移入输入框，可编辑后重新发送')
+    requestAnimationFrame(() => {
+      const el = promptRef.current
+      if (!el) return
+      el.focus()
+      const len = (item.text || '').length
+      el.setSelectionRange?.(len, len)
+    })
+  }
+  const guideQueuedItem = (id) => {
+    const item = queuedRef.current.find(x => x.id === id)
+    if (!item) return
+    syncQueue([item, ...queuedRef.current.filter(x => x.id !== id)])
+    guideQueued()
+  }
   const onPaste = (e) => {
     const imgs = Array.from(e.clipboardData?.files || []).filter(f => f.type?.startsWith('image/'))
     if (imgs.length) {
@@ -662,10 +752,11 @@ export default function ChatApp() {
     setTimeout(focusPrompt, 0)
   }, [])
 
-  const send = async () => {
-    const text = prompt.trim()
-    const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
-    if ((!text && !files.length) || busy) return
+  const runSend = async (item = {}) => {
+    const text = String(item.text || '').trim()
+    const files = (item.files || []).map(({ name, type, dataURL }) => ({ name, type, dataURL }))
+    if (!text && !files.length) return
+    const runToken = ++runSeqRef.current
     setBusy(true); setStreamingSid(sid || 'new'); setErr(''); setNotice('')
     let id = sid
     try {
@@ -676,20 +767,62 @@ export default function ChatApp() {
       const clientUserID = `u-${Date.now()}`
       setStreamingSid(id)
       setSessions(xs => xs.map(s => s.id === id ? { ...s, running:true } : s))
-      setPrompt(''); setAttachments([]); setAutoFollow(true); setShowFollow(false)
+      setAutoFollow(true); setShowFollow(false)
       const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
       const optimistic = { id:clientUserID, role:'user', content:(text || '请分析这张图片') + fileNote, files, created_at:Math.floor(Date.now()/1000) }
       const pending = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }
       setMessages(xs => [...xs, optimistic, pending])
-      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: llmNo }, client_user_id:clientUserID }) })
+      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: item.llmNo ?? llmNo }, client_user_id:clientUserID }) })
       if (!res.ok) throw new Error(await res.text())
       await readStream(res, pending.id, clientUserID)
     } catch (e) {
+      if (runToken === runSeqRef.current && e?.name !== 'AbortError') setErr(e.message || String(e))
+    } finally {
+      if (runToken !== runSeqRef.current) return
+      if (id) await loadSessions(id).catch(()=>{})
+      const next = popQueued()
+      if (next) {
+        setNotice(`继续发送队列消息（剩余 ${Math.max(queuedRef.current.length, 0)} 条）`)
+        setTimeout(() => runSend(next), 0)
+      } else {
+        setBusy(false)
+        setStreamingSid('')
+      }
+    }
+  }
+
+  const send = async () => {
+    const text = prompt.trim()
+    const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
+    if (!text && !files.length) return
+    const item = { text, files, llmNo }
+    setPrompt(''); setAttachments([])
+    if (busy) {
+      enqueueMessage(item)
+      return
+    }
+    await runSend(item)
+  }
+
+  const guideQueued = async () => {
+    const next = popQueued()
+    if (!next) return
+    const id = sid
+    const wasRunning = busy && streamingSid === sid
+    ++runSeqRef.current
+    try {
+      if (wasRunning) {
+        streamAbortRef.current?.abort?.()
+        if (id) await api(`/api/chat/cancel/${id}`, { method:'POST', body:'{}' })
+        setMessages(xs => xs.map((m, idx) => (idx === xs.length - 1 && m.role === 'assistant' && !m.content) ? { ...m, content:'已中止，改为执行引导消息。', error:true } : m))
+      }
+    } catch (e) {
       setErr(e.message || String(e))
     } finally {
-      if (id) await loadSessions(id).catch(()=>{})
       setBusy(false)
       setStreamingSid('')
+      setNotice('已引导：中止当前回复并发送队列消息')
+      setTimeout(() => runSend(next), 0)
     }
   }
 
@@ -738,7 +871,8 @@ export default function ChatApp() {
             <input value={draftTitle} autoFocus onChange={e=>setDraftTitle(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') saveRename(s.id); if(e.key==='Escape') setEditing('') }}/>
             <button onClick={()=>saveRename(s.id)}><Check size={14}/></button><button onClick={()=>setEditing('')}><X size={14}/></button>
           </div> : <button className="oa-session" onClick={()=>openSession(s.id)} title={shortTitle(s)}>
-            <span title={shortTitle(s)}>{s.running && <i className="oa-session-running-dot" aria-hidden="true"/>}{shortTitle(s)}</span><small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条{s.running && <em className="oa-session-running-label">运行中</em>}</small>
+            <span className="oa-session-title" title={shortTitle(s)}>{s.running && <i className="oa-session-running-dot" aria-hidden="true"/>}<b>{shortTitle(s)}</b></span>
+            <small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条{s.running && <em className="oa-session-running-label">运行中</em>}</small>
           </button>}
           {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{
             e.stopPropagation()
@@ -786,6 +920,21 @@ export default function ChatApp() {
       </section>
 
       <footer className="oa-composer-wrap">
+        {queuedMessages.length > 0 && <div className="oa-queue-dock" aria-label="待发送队列">
+          {queuedMessages.map((q, i) => <div key={q.id} className="oa-queued-item">
+            <span className="oa-queue-index">消息{i + 1}</span>
+            <div className="oa-queue-content" title={q.text || '请分析这张图片'}>
+              <b>{q.text || '请分析这张图片'}</b>
+              {q.files?.length ? <em>{q.files.length} 张图片</em> : null}
+            </div>
+            <span className="oa-queue-arrow" aria-hidden="true">→</span>
+            <div className="oa-queue-actions">
+              <button className="oa-guide-btn" type="button" onClick={()=>guideQueuedItem(q.id)} disabled={!isCurrentRunning} title={isCurrentRunning ? `暂停当前输出，立即发送消息${i + 1}` : 'AI 回复时可引导'}><Sparkles size={14}/>引导</button>
+              <button className="oa-queue-action" type="button" onClick={()=>removeQueued(q.id)} title="删除这条队列消息"><Trash2 size={14}/><span>删除</span></button>
+              <button className="oa-queue-action" type="button" onClick={()=>editQueued(q.id)} title="编辑这条队列消息"><Edit3 size={14}/><span>编辑</span></button>
+            </div>
+          </div>)}
+        </div>}
         <div className={`oa-composer ${dragging ? 'is-dragging' : ''}`} onDragOver={e=>{e.preventDefault(); setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={onDropImages}>
           <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e=>{ addImageFiles(e.target.files); e.target.value='' }} />
           {attachments.length > 0 && <div className="oa-attach-preview">
@@ -799,10 +948,11 @@ export default function ChatApp() {
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
               {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
-            {isCurrentRunning ? <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="停止生成" aria-label="停止生成"><Square size={14}/></button> : <button className="oa-send" type="button" disabled={!prompt.trim() && !attachments.length} onClick={send} title="发送" aria-label="发送"><Send size={17}/></button>}
+            <button className="oa-send" type="button" disabled={!prompt.trim() && !attachments.length} onClick={send} title={isCurrentRunning ? '加入发送队列' : '发送'} aria-label={isCurrentRunning ? '加入发送队列' : '发送'}><Send size={17}/></button>
+            {isCurrentRunning && <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="停止生成" aria-label="停止生成"><Square size={14}/></button>}
           </div>
         </div>
-        <p>Enter 发送 · Shift + Enter 换行 · 支持 Markdown、代码块复制、图片粘贴/拖拽与模型切换</p>
+        <p>Enter 发送 · Shift + Enter 换行 · 回复中发送会排队，引导可立即插队</p>
       </footer>
     </main>
   </div>

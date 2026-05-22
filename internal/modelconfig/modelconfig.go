@@ -120,7 +120,7 @@ func exists(p string) bool { st, err := os.Stat(p); return err == nil && !st.IsD
 func ImportMyKey(gaRoot string, reveal bool) (Draft, error) {
 	mykey := filepath.Join(gaRoot, "mykey.py")
 	if !exists(mykey) {
-		return Draft{}, fmt.Errorf("mykey.py not found: %s", mykey)
+		return Draft{UpdatedAt: time.Now().Format(time.RFC3339), Profiles: Defaults()}, nil
 	}
 	py := pythonExe(gaRoot)
 	script := `import ast, json, sys
