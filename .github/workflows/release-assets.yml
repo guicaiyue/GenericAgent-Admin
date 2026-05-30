@@ -7,6 +7,9 @@ on:
         description: Release tag to build and upload assets for
         required: true
         default: v0.0.5
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -36,7 +39,7 @@ jobs:
       - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -67,7 +70,7 @@ jobs:
         run: |
           mkdir -p dist/cmd
           cp cmd/chat_worker.py dist/cmd/chat_worker.py
-          tag='${{ inputs.tag }}'
+          tag='${{ inputs.tag || github.ref_name }}'
           COMMIT=$(git rev-parse --short HEAD)
           BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           LDFLAGS="-s -w -X genericagent-admin-go/internal/version.Version=${tag} -X genericagent-admin-go/internal/version.Commit=${COMMIT} -X genericagent-admin-go/internal/version.Date=${BUILD_DATE}"
@@ -80,7 +83,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          tag='${{ inputs.tag }}'
+          tag='${{ inputs.tag || github.ref_name }}'
           version="${tag#v}"
           name="ga-admin-${tag}-${{ matrix.goos }}-${{ matrix.goarch }}"
           mkdir -p package "$name"
@@ -103,7 +106,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
             package/*.zip
             package/*.sha256
