@@ -74,6 +74,7 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		cs.Messages = append(cs.Messages, msg)
 		_ = saveChatSession(s.CfgStore.Cfg, cs)
 		s.publishChatRun(sid, map[string]interface{}{"type": "error", "message": msg})
+		s.NotifyPetEvent("chat:error")
 		s.endChatRun(sid)
 		return
 	}
@@ -84,6 +85,7 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		cs.Messages = append(cs.Messages, msg)
 		_ = saveChatSession(s.CfgStore.Cfg, cs)
 		s.publishChatRun(sid, map[string]interface{}{"type": "error", "message": msg})
+		s.NotifyPetEvent("chat:error")
 		s.endChatRun(sid)
 		return
 	}
@@ -137,6 +139,11 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 	cs.Messages = append(cs.Messages, final)
 	cs.UpdatedAt = time.Now().Unix()
 	_ = saveChatSession(s.CfgStore.Cfg, cs)
+	if final.Error {
+		s.NotifyPetEvent("chat:error")
+	} else {
+		s.NotifyPetEvent("chat:done")
+	}
 	s.endChatRun(sid)
 }
 

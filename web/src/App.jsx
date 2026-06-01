@@ -326,6 +326,20 @@ export default function App() {
     catch(e){ setMsg(e.message) }
     finally{ setVersionBusy(false) }
   }
+  const installTMWebDriverDeps = async () => {
+    if (!confirmDanger('tmwebdriver-install-deps', '将使用当前 GA Python 执行 pip install requests bottle simple-websocket-server（清华源）。继续？')) return
+    setBusy(true)
+    try { const d = await api('/api/tmwebdriver/install-deps', { dangerous:true, method:'POST', body:'{}' }); setTmwdStatus(d.status || d); setMsg(d.ok ? 'TMWebDriver 依赖安装完成' : (d.error || '依赖安装失败，请查看输出')) }
+    catch(e){ setMsg(e.message) }
+    finally{ setBusy(false) }
+  }
+  const configureGitMirror = async (enabled) => {
+    if (!confirmDanger('git-mirror', enabled ? '将写入全局 git GitHub 镜像 insteadOf 配置。继续？' : '将移除默认 GitHub 镜像 insteadOf 配置。继续？')) return
+    setGitBusy(true)
+    try { const d = await api('/api/ga/git-mirror', { dangerous:true, method:'POST', body: JSON.stringify({ enabled }) }); setGitResult(d); setMsg(d.ok ? (enabled ? 'GitHub 镜像已启用' : 'GitHub 镜像已关闭') : (d.error || 'Git 镜像配置失败')) }
+    catch(e){ setMsg(e.message) }
+    finally{ setGitBusy(false) }
+  }
   const runSearch = async () => { setBusy(true); try { const d = await api(`/api/files/search?path=${encodeURIComponent(filePath)}&q=${encodeURIComponent(fileSearch)}&limit=80`); setSearchHits(d.hits || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
   const loadTask = async (id) => { setBusy(true); try { const d = await api(`/api/schedule/task?id=${encodeURIComponent(id)}`); setTaskId(d.id || id); setTaskEditor(safeJson(d.raw)); setTab('tasks'); setTaskSubTab('scheduled') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
@@ -373,7 +387,12 @@ export default function App() {
           </Panel>
           <Panel title={t.lists.readiness}><EntryList items={(control?.readiness || []).map((r,i)=>({name:r.area, path:r.text, kind:r.level}))} empty="OK"/></Panel>
           <Panel title={t.lists.capabilities}><EntryList items={(control?.capabilities || []).map(c=>({name:c.name,path:c.path,kind:c.kind}))} empty={t.empty}/></Panel>
-          <Panel title="TMWebDriver 监控" className="tmwd-panel"><div className="tmwd-head"><div><b className={tmwdStatus?.ok ? 'ok' : 'err-text'}>{tmwdStatus?.ok ? '基础状态正常' : '需要检查'}</b><p className="muted">{tmwdStatus?.recommendation || tmwdStatus?.error || '检测浏览器进程、18766 master 端口和 tmwd_cdp_bridge 扩展。'}</p></div><div className="actions"><button onClick={refreshTMWebDriverStatus} disabled={busy}><RefreshCw size={14}/>{t.refresh}</button><button onClick={repairTMWebDriver} disabled={busy || tmwdStatus?.port_listening}><Play size={14}/>修复/启动</button></div></div><div className="tmwd-checks">{(tmwdStatus?.checks || []).map(c => <div key={c.name} className={c.ok ? 'status-pill ok' : 'status-pill bad'}><span>{c.ok ? '✓' : '!'}</span><b>{c.name}</b><small>{c.detail}</small></div>)}</div>{tmwdStatus?.port && <p className="muted">Master port: {tmwdStatus.port}</p>}{tmwdStatus?.extension_paths?.length > 0 && <pre className="tmwd-paths">{tmwdStatus.extension_paths.join(String.fromCharCode(10))}</pre>}</Panel>
+          <Panel title="GitHub 镜像 / 更新辅助" className="git-panel">
+            <p className="muted">网络受限时可一键配置全局 git insteadOf：GitHub 地址将走 gh-proxy 镜像；也可随时关闭。</p>
+            <div className="actions"><button onClick={() => configureGitMirror(true)} disabled={gitBusy}>启用 GitHub 镜像</button><button onClick={() => configureGitMirror(false)} disabled={gitBusy}>关闭镜像</button></div>
+            {gitResult && <pre className="tmwd-paths">{JSON.stringify(gitResult, null, 2)}</pre>}
+          </Panel>
+          <Panel title="TMWebDriver 监控" className="tmwd-panel"><div className="tmwd-head"><div><b className={tmwdStatus?.ok ? 'ok' : 'err-text'}>{tmwdStatus?.ok ? '基础状态正常' : '需要检查'}</b><p className="muted">{tmwdStatus?.recommendation || tmwdStatus?.error || '检测浏览器进程、18766 master 端口、Python 依赖和 tmwd_cdp_bridge 扩展。'}</p></div><div className="actions"><button onClick={refreshTMWebDriverStatus} disabled={busy}><RefreshCw size={14}/>{t.refresh}</button><button onClick={installTMWebDriverDeps} disabled={busy || !(tmwdStatus?.python_missing?.length > 0)}>安装依赖</button><button onClick={repairTMWebDriver} disabled={busy || tmwdStatus?.port_listening}><Play size={14}/>修复/启动</button></div></div><div className="tmwd-checks">{(tmwdStatus?.checks || []).map(c => <div key={c.name} className={c.ok ? 'status-pill ok' : 'status-pill bad'}><span>{c.ok ? '✓' : '!'}</span><b>{c.name}</b><small>{c.detail}</small></div>)}</div>{tmwdStatus?.python_path && <p className="muted">Python: {tmwdStatus.python_path}</p>}{tmwdStatus?.python_missing?.length > 0 && <div className="tmwd-deps-warning"><b>缺少 TMWebDriver Python 依赖：{tmwdStatus.python_missing.join(', ')}</b>{tmwdStatus?.install_command && <code>{tmwdStatus.install_command}</code>}</div>}{tmwdStatus?.port && <p className="muted">Master port: {tmwdStatus.port}</p>}{tmwdStatus?.extension_paths?.length > 0 && <pre className="tmwd-paths">{tmwdStatus.extension_paths.join(String.fromCharCode(10))}</pre>}</Panel>
           <Panel title="Recent Logs"><EntryList items={control?.logs?.items || []} empty={t.empty}/></Panel>
           <Panel title={t.lists.recentReports}><EntryList items={control?.reports || []} empty={t.empty}/></Panel>
           <Panel title={t.lists.riskHints}><EntryList items={(control?.risks || []).map(r=>({name:r.area,path:r.text,kind:r.level}))} empty="OK"/></Panel>

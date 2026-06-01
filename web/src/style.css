@@ -2269,6 +2269,8 @@ pre, code { font-variant-ligatures: none; }
 .status-pill.ok span { color: #fff; background: var(--green); }
 .status-pill.bad span { color: #fff; background: var(--red); }
 .status-pill small { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
+.tmwd-deps-warning { margin-top: 12px; padding: 11px 12px; border-radius: var(--radius-md); border: 1px solid rgba(180, 35, 58, .24); background: rgba(180, 35, 58, .07); color: var(--text); display: grid; gap: 7px; }
+.tmwd-deps-warning code { display: block; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.78); border: 1px solid rgba(180,35,58,.16); color: var(--red); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 .tmwd-paths { margin-top: 12px; max-height: 96px; font-size: 12px; }
 
 /* Reference-style chat composer + queued guide UI */

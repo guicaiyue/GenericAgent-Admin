@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +34,7 @@ type Server struct {
 	Models      *modelconfig.Store
 	Static      fs.FS
 	ReactApp    *reactAppBridge
+	PetEvent    func(string)
 	ChatMu      sync.Mutex
 	ChatRuns    map[string]*chatRun
 	ChatWorkers map[string]*chatWorker
@@ -39,6 +42,13 @@ type Server struct {
 
 func New(cfg *config.Store, svc *service.Manager, models *modelconfig.Store, static fs.FS) *Server {
 	return &Server{CfgStore: cfg, Svc: svc, Models: models, Static: static, ReactApp: newReactAppBridge(), ChatRuns: map[string]*chatRun{}, ChatWorkers: map[string]*chatWorker{}}
+}
+
+func (s *Server) NotifyPetEvent(event string) {
+	if s == nil || s.PetEvent == nil || strings.TrimSpace(event) == "" {
+		return
+	}
+	s.PetEvent(event)
 }
 
 func (s *Server) Routes() http.Handler {
@@ -55,8 +65,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/ga/control", s.gaControl)
 	mux.HandleFunc("/api/ga/git-update", s.requireDangerousConfirm(s.gaGitUpdate))
 	mux.HandleFunc("/api/ga/git-status", s.gaGitStatus)
+	mux.HandleFunc("/api/ga/git-mirror", s.requireDangerousConfirm(s.gitMirrorConfig))
 	mux.HandleFunc("/api/tmwebdriver/status", s.tmwebdriverStatus)
 	mux.HandleFunc("/api/tmwebdriver/repair", s.requireDangerousConfirm(s.tmwebdriverRepair))
+	mux.HandleFunc("/api/tmwebdriver/install-deps", s.requireDangerousConfirm(s.tmwebdriverInstallDeps))
 	// Built-in BBS service compatible with GA reflect/agent_team_worker.py
 	mux.HandleFunc("/api/bbs/status", s.bbsStatus)
 	mux.HandleFunc("/api/bbs/config", s.requireDangerousConfirm(s.bbsConfigHandler))
@@ -147,6 +159,8 @@ var riskCatalogItems = []riskCatalogItem{
 	{Path: "/api/services/stop-all", Level: "dangerous", Action: "stop_all_processes", Reason: "stops all managed GA services"},
 	{Path: "/api/services/autostart", Level: "reversible", Action: "toggle_service_autostart", Reason: "changes Admin-Go service autostart list"},
 	{Path: "/api/tmwebdriver/repair", Level: "reversible", Action: "start_tmwebdriver_master", Reason: "starts a persistent TMWebDriver master process on localhost:18766"},
+	{Path: "/api/tmwebdriver/install-deps", Level: "dangerous", Action: "install_tmwebdriver_deps", Reason: "runs pip install with Tsinghua PyPI mirror for TMWebDriver dependencies"},
+	{Path: "/api/git/mirror", Level: "reversible", Action: "configure_git_mirror", Reason: "updates global git insteadOf mirror for github.com URLs"},
 	{Path: "/api/autostart/enable", Level: "dangerous", Action: "enable_os_autostart", Reason: "writes OS autostart entry"},
 	{Path: "/api/autostart/disable", Level: "reversible", Action: "disable_os_autostart", Reason: "removes OS autostart entry"},
 	{Path: "/api/schedule/task", Level: "dangerous", Action: "edit_schedule_task", Reason: "changes scheduled task JSON"},
@@ -205,6 +219,10 @@ type tmwebdriverStatusResponse struct {
 	BrowserRunning bool               `json:"browser_running"`
 	PortListening  bool               `json:"port_listening"`
 	ExtensionFound bool               `json:"extension_found"`
+	PythonOK       bool               `json:"python_ok"`
+	PythonPath     string             `json:"python_path,omitempty"`
+	PythonMissing  []string           `json:"python_missing,omitempty"`
+	InstallCommand string             `json:"install_command,omitempty"`
 	Port           int                `json:"port"`
 	ExtensionPaths []string           `json:"extension_paths,omitempty"`
 	Checks         []tmwebdriverCheck `json:"checks"`
@@ -217,8 +235,101 @@ func (s *Server) tmwebdriverStatus(w http.ResponseWriter, r *http.Request) {
 		bad(w, 405, "method not allowed")
 		return
 	}
-	st := buildTMWebDriverStatus()
+	st := s.buildTMWebDriverStatus()
 	writeJSON(w, st)
+}
+
+const defaultPipIndexURL = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+func (s *Server) tmwebdriverInstallDeps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	gaRoot := strings.TrimSpace(s.CfgStore.Cfg.GARoot)
+	if gaRoot == "" {
+		bad(w, 400, "ga_root is empty")
+		return
+	}
+	python := resolvePythonForRoot(gaRoot, s.CfgStore.Cfg.PythonPath)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	args := buildTMWebDriverInstallArgs(defaultPipIndexURL)
+	cmd := exec.CommandContext(ctx, python, args...)
+	cmd.Dir = gaRoot
+	hideChildWindow(cmd)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		bad(w, 504, "pip install timed out")
+		return
+	}
+	status := s.buildTMWebDriverStatus()
+	resp := map[string]interface{}{
+		"ok":      err == nil && status.PythonOK,
+		"python":  python,
+		"command": append([]string{python}, args...),
+		"output":  strings.TrimSpace(string(out)),
+		"status":  status,
+	}
+	if err != nil {
+		resp["error"] = err.Error()
+	}
+	writeJSON(w, resp)
+}
+
+const defaultGitHubMirrorPrefix = "https://gh-proxy.com/https://github.com/"
+
+type gitMirrorRequest struct {
+	Enabled bool   `json:"enabled"`
+	Mirror  string `json:"mirror"`
+}
+
+func (s *Server) gitMirrorConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req gitMirrorRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req)
+	}
+	mirror := strings.TrimSpace(req.Mirror)
+	if mirror == "" {
+		mirror = defaultGitHubMirrorPrefix
+	}
+	if req.Enabled && !strings.HasPrefix(mirror, "https://") && !strings.HasPrefix(mirror, "http://") {
+		bad(w, 400, "mirror must start with http:// or https://")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	args := buildGitMirrorArgs(req.Enabled, mirror)
+	cmd := exec.CommandContext(ctx, "git", args...)
+	hideChildWindow(cmd)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		bad(w, 504, "git config timed out")
+		return
+	}
+	resp := map[string]interface{}{
+		"ok":      err == nil,
+		"enabled": req.Enabled,
+		"mirror":  mirror,
+		"command": append([]string{"git"}, args...),
+		"output":  strings.TrimSpace(string(out)),
+	}
+	if err != nil {
+		resp["error"] = err.Error()
+	}
+	writeJSON(w, resp)
+}
+
+func buildGitMirrorArgs(enabled bool, mirror string) []string {
+	key := "url." + mirror + ".insteadOf"
+	if enabled {
+		return []string{"config", "--global", key, "https://github.com/"}
+	}
+	return []string{"config", "--global", "--unset-all", key}
 }
 
 type tmwebdriverRepairResponse struct {
@@ -234,23 +345,35 @@ func (s *Server) tmwebdriverRepair(w http.ResponseWriter, r *http.Request) {
 		bad(w, 405, "method not allowed")
 		return
 	}
-	before := buildTMWebDriverStatus()
+	before := s.buildTMWebDriverStatus()
 	if before.PortListening {
+		s.NotifyPetEvent("tmwebdriver:ready")
 		writeJSON(w, tmwebdriverRepairResponse{Started: false, Status: before, Message: "18766 master 已在监听，无需重复启动。"})
+		return
+	}
+	if !before.PythonOK {
+		s.NotifyPetEvent("tmwebdriver:error")
+		writeJSON(w, tmwebdriverRepairResponse{Started: false, Status: before, Message: "TMWebDriver Python 依赖缺失，请先执行：" + before.InstallCommand})
 		return
 	}
 	pid, cmdline, err := s.startTMWebDriverMaster()
 	if err != nil {
+		s.NotifyPetEvent("tmwebdriver:error")
 		bad(w, 500, err.Error())
 		return
 	}
 	var after tmwebdriverStatusResponse
 	for i := 0; i < 20; i++ {
 		time.Sleep(250 * time.Millisecond)
-		after = buildTMWebDriverStatus()
+		after = s.buildTMWebDriverStatus()
 		if after.PortListening {
 			break
 		}
+	}
+	if after.PortListening {
+		s.NotifyPetEvent("tmwebdriver:start")
+	} else {
+		s.NotifyPetEvent("tmwebdriver:error")
 	}
 	writeJSON(w, tmwebdriverRepairResponse{Started: true, PID: pid, Command: cmdline, Status: after, Message: "已启动 TMWebDriver master；若仍未 OK，请确认浏览器已打开且扩展已安装。"})
 }
@@ -297,27 +420,41 @@ func resolvePythonForRoot(gaRoot, configured string) string {
 	return "python"
 }
 
-func buildTMWebDriverStatus() tmwebdriverStatusResponse {
+func (s *Server) buildTMWebDriverStatus() tmwebdriverStatusResponse {
+	return buildTMWebDriverStatusForConfig(s.CfgStore.Cfg.GARoot, s.CfgStore.Cfg.PythonPath)
+}
+
+func buildTMWebDriverStatusForConfig(gaRoot, configuredPython string) tmwebdriverStatusResponse {
 	const port = 18766
 	browserRunning, browserDetail := detectChromeRunning()
 	portListening, portDetail := detectTCPListening("127.0.0.1", port, 700*time.Millisecond)
 	extFound, extPaths, extDetail := detectTMWebDriverExtension()
+	pythonPath := resolvePythonForRoot(gaRoot, configuredPython)
+	pythonOK, pythonMissing, pythonDetail := detectTMWebDriverPythonDeps(gaRoot, pythonPath)
+	installCommand := buildTMWebDriverInstallCommand(pythonPath)
 	st := tmwebdriverStatusResponse{
-		OK:             browserRunning && portListening && extFound,
+		OK:             browserRunning && portListening && extFound && pythonOK,
 		BrowserRunning: browserRunning,
 		PortListening:  portListening,
 		ExtensionFound: extFound,
+		PythonOK:       pythonOK,
+		PythonPath:     pythonPath,
+		PythonMissing:  pythonMissing,
+		InstallCommand: installCommand,
 		Port:           port,
 		ExtensionPaths: extPaths,
 		CheckedAt:      time.Now().Format(time.RFC3339),
 		Checks: []tmwebdriverCheck{
 			{Name: "browser_process", OK: browserRunning, Detail: browserDetail},
+			{Name: "python_dependencies", OK: pythonOK, Detail: pythonDetail},
 			{Name: "ws_master_port", OK: portListening, Detail: portDetail},
 			{Name: "chrome_extension", OK: extFound, Detail: extDetail},
 		},
 	}
 	if st.OK {
-		st.Recommendation = "TMWebDriver 基础监控正常：浏览器进程、18766 master 端口和扩展均已检测到。"
+		st.Recommendation = "TMWebDriver 基础监控正常：Python 依赖、浏览器进程、18766 master 端口和扩展均已检测到。"
+	} else if !pythonOK {
+		st.Recommendation = fmt.Sprintf("TMWebDriver Python 依赖缺失：%s。请在 GA 环境执行：%s", strings.Join(pythonMissing, ", "), installCommand)
 	} else if !browserRunning {
 		st.Recommendation = "未检测到 Chrome/Edge 浏览器进程；请先打开已安装 TMWebDriver 扩展的浏览器。"
 	} else if !portListening {
@@ -326,6 +463,66 @@ func buildTMWebDriverStatus() tmwebdriverStatusResponse {
 		st.Recommendation = "未在 Chrome Secure Preferences 中检测到 tmwd_cdp_bridge 扩展；请按 web_setup_sop 安装或修复扩展。"
 	}
 	return st
+}
+
+func tmwebdriverPythonModules() []string {
+	return []string{"requests", "bottle", "simple_websocket_server"}
+}
+
+func tmwebdriverModuleToPipPackage(module string) string {
+	if module == "simple_websocket_server" {
+		return "simple-websocket-server"
+	}
+	return module
+}
+
+func tmwebdriverPipPackages(modules []string) []string {
+	pkgs := make([]string, 0, len(modules))
+	for _, m := range modules {
+		pkgs = append(pkgs, tmwebdriverModuleToPipPackage(m))
+	}
+	return pkgs
+}
+
+func tmwebdriverRequiredPipPackages() []string {
+	return tmwebdriverPipPackages(tmwebdriverPythonModules())
+}
+
+func detectTMWebDriverPythonDeps(gaRoot, python string) (bool, []string, string) {
+	modules := tmwebdriverPythonModules()
+	code := "import importlib.util, json; mods=" + strconv.Quote(strings.Join(modules, ",")) + ".split(','); missing=[m for m in mods if importlib.util.find_spec(m) is None]; print(json.dumps(missing))"
+	cmd := exec.Command(python, "-c", code)
+	if strings.TrimSpace(gaRoot) != "" {
+		cmd.Dir = gaRoot
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, tmwebdriverRequiredPipPackages(), strings.TrimSpace(string(out) + " " + err.Error())
+	}
+	var missingModules []string
+	if err := json.Unmarshal(bytes.TrimSpace(out), &missingModules); err != nil {
+		return false, tmwebdriverRequiredPipPackages(), "cannot parse python dependency probe: " + strings.TrimSpace(string(out))
+	}
+	missingPkgs := tmwebdriverPipPackages(missingModules)
+	if len(missingPkgs) > 0 {
+		return false, missingPkgs, "missing: " + strings.Join(missingPkgs, ", ")
+	}
+	return true, nil, strings.Join(tmwebdriverRequiredPipPackages(), ", ") + " installed for " + python
+}
+
+func buildTMWebDriverInstallArgs(indexURL string) []string {
+	args := []string{"-m", "pip", "install"}
+	if strings.TrimSpace(indexURL) != "" {
+		args = append(args, "-i", strings.TrimSpace(indexURL))
+	}
+	return append(args, tmwebdriverRequiredPipPackages()...)
+}
+
+func buildTMWebDriverInstallCommand(python string) string {
+	if strings.TrimSpace(python) == "" {
+		python = "python"
+	}
+	return python + " " + strings.Join(buildTMWebDriverInstallArgs(defaultPipIndexURL), " ")
 }
 
 func detectTCPListening(host string, port int, timeout time.Duration) (bool, string) {
@@ -643,9 +840,11 @@ func (s *Server) reactAppStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.ReactApp.start(s.CfgStore.Cfg.GARoot); err != nil {
+		s.NotifyPetEvent("react:error")
 		bad(w, 500, err.Error())
 		return
 	}
+	s.NotifyPetEvent("react:start")
 	writeJSON(w, s.ReactApp.snapshot())
 }
 func (s *Server) reactAppStop(w http.ResponseWriter, r *http.Request) {
@@ -654,9 +853,11 @@ func (s *Server) reactAppStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.ReactApp.stop(); err != nil {
+		s.NotifyPetEvent("react:error")
 		bad(w, 500, err.Error())
 		return
 	}
+	s.NotifyPetEvent("react:stop")
 	writeJSON(w, s.ReactApp.snapshot())
 }
 func (s *Server) reactAppProxy(w http.ResponseWriter, r *http.Request) {
@@ -680,6 +881,7 @@ func (s *Server) StopManagedServices() {
 		return
 	}
 	s.Svc.StopAll()
+	s.NotifyPetEvent("service:stop_all")
 }
 
 // ShutdownCleanup stops child processes before the Admin process exits.
