@@ -4,7 +4,7 @@
   "pets": [
     {
       "id": "upload-pet",
-      "name": "GA Admin Upload Pet",
+      "name": "White Chibi Angel",
       "manifest": "/ga-admin-pets/upload-pet/pet.json",
       "spritesheet": "/ga-admin-pets/upload-pet/spritesheet.webp"
     }

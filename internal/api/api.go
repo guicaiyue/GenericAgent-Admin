@@ -69,6 +69,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/tmwebdriver/status", s.tmwebdriverStatus)
 	mux.HandleFunc("/api/tmwebdriver/repair", s.requireDangerousConfirm(s.tmwebdriverRepair))
 	mux.HandleFunc("/api/tmwebdriver/install-deps", s.requireDangerousConfirm(s.tmwebdriverInstallDeps))
+	mux.HandleFunc("/api/hatch-pet/status", s.hatchPetStatus)
+	mux.HandleFunc("/api/hatch-pet/export", s.requireDangerousConfirm(s.hatchPetExport))
+	mux.HandleFunc("/api/hatch-pet/open", s.hatchPetOpen)
 	// Built-in BBS service compatible with GA reflect/agent_team_worker.py
 	mux.HandleFunc("/api/bbs/status", s.bbsStatus)
 	mux.HandleFunc("/api/bbs/config", s.requireDangerousConfirm(s.bbsConfigHandler))
@@ -171,6 +174,7 @@ var riskCatalogItems = []riskCatalogItem{
 	{Path: "/api/goals/stop", Level: "dangerous", Action: "stop_goal", Reason: "stops autonomous GA goal process by recorded PID"},
 	{Path: "/api/goals/delete", Level: "dangerous", Action: "delete_goal", Reason: "deletes goal state/output files"},
 	{Path: "/api/models/export", Level: "dangerous", Action: "export_models", Reason: "writes active GA model configuration"},
+	{Path: "/api/hatch-pet/export", Level: "dangerous", Action: "export_hatch_pet", Reason: "writes embedded hatch-pet skill files to a Codex skills directory"},
 }
 
 func (s *Server) riskCatalog(w http.ResponseWriter, r *http.Request) {
