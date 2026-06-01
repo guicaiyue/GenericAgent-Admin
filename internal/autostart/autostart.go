@@ -52,7 +52,7 @@ func StatusFor(target string) Status {
 	if runtime.GOOS == "windows" {
 		s.Method = "HKCU Run"
 		s.Path = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-		out, err := exec.Command("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName).CombinedOutput()
+		out, err := commandOutput("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName)
 		if err != nil {
 			s.Enabled = false
 			return s
@@ -82,7 +82,7 @@ func Enable(target string) (Status, error) {
 	}
 	if runtime.GOOS == "windows" {
 		cmd := fmt.Sprintf("\"%s\"", target)
-		out, err := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName, "/t", "REG_SZ", "/d", cmd, "/f").CombinedOutput()
+		out, err := commandOutput("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName, "/t", "REG_SZ", "/d", cmd, "/f")
 		if err != nil {
 			return StatusFor(target), fmt.Errorf("reg add failed: %v: %s", err, strings.TrimSpace(string(out)))
 		}
@@ -111,9 +111,9 @@ func Enable(target string) (Status, error) {
 		if err := writeFileAtomic(p, []byte(plist), 0644); err != nil {
 			return StatusFor(target), err
 		}
-		_ = exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), p).Run()
-		_ = exec.Command("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), p).Run()
-		_ = exec.Command("launchctl", "enable", fmt.Sprintf("gui/%d/%s", os.Getuid(), appID)).Run()
+		_ = runCommand("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), p)
+		_ = runCommand("launchctl", "bootstrap", fmt.Sprintf("gui/%d", os.Getuid()), p)
+		_ = runCommand("launchctl", "enable", fmt.Sprintf("gui/%d/%s", os.Getuid(), appID))
 		return StatusFor(target), nil
 	}
 	return StatusFor(target), errors.New("autostart is only supported on Windows and macOS")
@@ -121,7 +121,7 @@ func Enable(target string) (Status, error) {
 
 func Disable(target string) (Status, error) {
 	if runtime.GOOS == "windows" {
-		out, err := exec.Command("reg", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName, "/f").CombinedOutput()
+		out, err := commandOutput("reg", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", runName, "/f")
 		if err != nil && !strings.Contains(strings.ToLower(string(out)), "unable") {
 			return StatusFor(target), fmt.Errorf("reg delete failed: %v: %s", err, strings.TrimSpace(string(out)))
 		}
@@ -129,13 +129,25 @@ func Disable(target string) (Status, error) {
 	}
 	if runtime.GOOS == "darwin" {
 		p := launchAgentPath()
-		_ = exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), p).Run()
+		_ = runCommand("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), p)
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return StatusFor(target), err
 		}
 		return StatusFor(target), nil
 	}
 	return StatusFor(target), errors.New("autostart is only supported on Windows and macOS")
+}
+
+func commandOutput(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
+	hideChildWindow(cmd)
+	return cmd.CombinedOutput()
+}
+
+func runCommand(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	hideChildWindow(cmd)
+	return cmd.Run()
 }
 
 func writeFileAtomic(path string, data []byte, perm os.FileMode) (err error) {

@@ -11,10 +11,17 @@ export function ChatPage({ t }) {
   const newSession = async () => { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); setSid(d.id); setMessages([]); await loadSessions() }
   useEffect(()=>{ loadSessions().catch(e=>setErr(e.message)) }, [])
   const send = async () => {
-    if (!prompt.trim() || busy) return
+    const text = prompt.trim()
+    if (text === '/new') {
+      setPrompt('')
+      if (busy) { setErr('当前正在执行，完成后可使用 /new 创建新会话'); return }
+      await newSession()
+      return
+    }
+    if (!text || busy) return
     let cur = sid
     if (!cur) { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); cur = d.id; setSid(cur) }
-    const text = prompt; setPrompt(''); setBusy(true); setErr('')
+    setPrompt(''); setBusy(true); setErr('')
     const user = { id: `u-${Date.now()}`, role:'user', content:text, created_at: Math.floor(Date.now()/1000) }
     const assistant = { id: `a-${Date.now()}`, role:'assistant', content:'', created_at: Math.floor(Date.now()/1000) }
     setMessages(ms => [...ms, user, assistant])

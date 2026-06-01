@@ -211,6 +211,7 @@ for node in tree.body:
     profiles.append(p)
 print(json.dumps({'updated_at':'','profiles':profiles}, ensure_ascii=False))`
 	cmd := exec.Command(py, "-c", script, mykey, boolArg(reveal))
+	hideChildWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

@@ -271,6 +271,7 @@ func gitOutput(args ...string) (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
+	hideChildWindow(cmd)
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	b, err := cmd.Output()
 	if err != nil || ctx.Err() != nil {
@@ -363,6 +364,7 @@ func applyLatest(ctx context.Context, progress func(stage, msg string, pct int, 
 	emit("restarting", "升级包已就绪，正在重启服务", 95, &check)
 	cmd := exec.Command("cmd", "/C", "start", "", script)
 	cmd.Dir = work
+	hideChildWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return ApplyResult{}, err
 	}

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Bot, Brain, CalendarClock, CheckCircle2, Copy, Eye, FileCode2, FolderCog, Globe2, MessageSquare, Play, RefreshCw, Server, ShieldAlert, Power, SlidersHorizontal, Square, Target, Terminal, Trash2, UploadCloud, XCircle, Download, GitPullRequest, Users } from 'lucide-react'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
+import { Activity, Bot, Brain, CalendarClock, CheckCircle2, Copy, Eye, FileCode2, FolderCog, Globe2, GitPullRequest, MessageSquare, Play, RefreshCw, Save, Server, ShieldAlert, Power, SlidersHorizontal, Square, Target, Terminal, Trash2, UploadCloud, Users, XCircle, Download } from 'lucide-react'
 import { api } from './lib/api'
 import { confirmDanger } from './lib/danger'
 import { NAV_ITEMS, TASK_SUB_TABS, parseRoute, buildRoute } from './lib/routing'
@@ -12,6 +14,10 @@ import { ChatPage } from './pages/ChatPage'
 import { GoalsPage } from './pages/GoalsPage'
 import { Models } from './pages/ModelsPage'
 import { FilesPage } from './pages/FilesPage'
+
+gsap.registerPlugin(useGSAP)
+
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 const I18N = {
   zh: {
@@ -65,6 +71,26 @@ export default function App() {
   const [goalOutputBytes, setGoalOutputBytes] = useState(() => localStorage.getItem('ga-admin-goal-output-bytes') || '120000')
   const [goalAutoRefresh, setGoalAutoRefresh] = useState(() => localStorage.getItem('ga-admin-goal-auto-refresh') !== 'false')
   const goalOutputSeq = useRef(0), goalRefreshBusy = useRef(false)
+  const appScope = useRef(null)
+
+  useGSAP(() => {
+    if (tab === 'chat' || prefersReducedMotion()) return
+    const ctx = gsap.context(() => {
+      const q = gsap.utils.selector(appScope)
+      let tl
+      const play = () => {
+        tl = gsap.timeline({ defaults: { ease: 'power2.out', duration: 0.28 } })
+        tl.from(q('.main > header'), { y: 8, autoAlpha: 0, clearProps: 'transform,opacity,visibility' })
+          .from(q('.stats .stat, .panel, .workspace, .logs-layout, .goals-page, .bbs-page, .settings-page'), { y: 10, autoAlpha: 0, stagger: 0.025, clearProps: 'transform,opacity,visibility' }, '-=0.12')
+      }
+      const raf = window.requestAnimationFrame(play)
+      const guard = window.setTimeout(() => {
+        gsap.set(q('.main > header, .stats .stat, .panel, .workspace, .logs-layout, .goals-page, .bbs-page, .settings-page'), { autoAlpha: 1, clearProps: 'transform,opacity,visibility' })
+      }, 900)
+      return () => { window.cancelAnimationFrame(raf); window.clearTimeout(guard); tl?.kill() }
+    }, appScope)
+    return () => ctx.revert()
+  }, { scope: appScope, dependencies: [tab, lang] })
 
   const inv = health?.inventory || {}
   const schedule = inv.schedule || {}
@@ -359,7 +385,7 @@ export default function App() {
   const needsSetup = !!health && !health?.ok
   if (needsSetup) return <div className="setup-shell"><div className="setup-card"><div className="brand setup-brand"><Bot/><div><h1>{t.setupTitle}</h1><p>{t.setupDesc}</p></div></div><div className="setup-env"><button className="secondary" onClick={checkSetupEnv} disabled={busy}>{t.checkEnv}</button>{setupEnv?.tools?.map(tool => <span key={tool.name} className={tool.ok ? 'ok' : 'err'} title={[tool.path, tool.version, tool.error].filter(Boolean).join('\n')}>{tool.ok ? '✓' : '×'} {tool.name}</span>)}</div><label>{t.root}<div className="setup-path-row"><input value={root} onChange={e=>setRoot(e.target.value)} placeholder="C:\\Users\\...\\GenericAgent"/><button className="secondary" onClick={()=>browseSetupDir('root')} disabled={busy}>{t.browse}</button></div></label><button onClick={validateSetupRoot} disabled={busy || !root}>{busy ? t.busy : t.validateRoot}</button><div className="setup-divider"><span>or</span></div><label>{t.installPath}<div className="setup-path-row"><input value={installRoot} onChange={e=>setInstallRoot(e.target.value)} placeholder="C:\\Users\\...\\GenericAgent"/><button className="secondary" onClick={()=>browseSetupDir('install')} disabled={busy}>{t.browse}</button></div></label><button className="secondary" onClick={installGA} disabled={busy || !(installRoot || root)}>{t.installGA}</button>{msg && <div className="message">{msg}</div>}<p className="setup-note">git clone https://github.com/lsdefine/GenericAgent</p></div></div>
 
-  return <div className="app">
+  return <div ref={appScope} className={`app app-tab-${tab}`}>
     <aside className="sidebar"><div className="brand"><Bot/><div><h1>{t.appName}</h1><p>{t.tagline}</p></div></div><div className="lang-switch"><div className="lang-switch-label"><Globe2 size={15}/><span>{t.language}</span></div><div className="lang-options" role="group" aria-label={t.language}><button type="button" className={lang === 'zh' ? 'active' : ''} onClick={()=>setLang('zh')}>中</button><button type="button" className={lang === 'en' ? 'active' : ''} onClick={()=>setLang('en')}>EN</button></div></div><nav>{nav.map(n => <button key={n} className={tab===n?'active':''} onClick={()=>{ if (n === 'chat') window.location.href = buildRoute('chat'); else setTab(n) }}>{icon(n)}{t.nav[n]}</button>)}</nav><button className="refresh" onClick={load} disabled={busy}><RefreshCw size={15}/>{busy ? t.busy : t.refresh}</button>{msg && <div className="message">{msg}</div>}</aside>
     <main className="main"><header><div><h2>{t.nav[tab]}</h2><p>{t.desc[tab]}</p></div><div className="badges"><span>{cfg?.host}:{cfg?.port}</span><span className={health?.ok?'ok':'err'}>{health?.ok ? t.ready : t.error}</span></div></header>
       {tab==='overview' && <section><div className="stats"><Stat label={t.cards.processes} value={services.length} icon={<Server/>}/><Stat label={t.cards.running} value={services.filter(s=>s.running).length} icon={<Activity/>}/><Stat label={t.cards.schedule} value={schedule.task_count || 0} icon={<CalendarClock/>}/><Stat label={t.cards.enabledTasks} value={schedule.enabled || 0} icon={<CheckCircle2/>}/></div><div className="grid2"><Panel title={t.cards.version}><div className="version-card"><div className="autostart-head"><Download size={18}/><strong>GA Admin {versionInfo?.version || 'dev'}</strong><span className={versionCheck?.update ? 'err' : 'ok'}>{versionCheck ? (versionCheck.update ? 'Update' : 'Latest') : (versionInfo?.goos ? `${versionInfo.goos}/${versionInfo.goarch}` : t.empty)}</span></div><p className="muted">commit {versionInfo?.commit || 'unknown'} · {versionInfo?.date || 'unknown'}</p>{versionCheck?.latest && <p>Latest: <a href={versionCheck.latest.html_url} target="_blank" rel="noreferrer">{versionCheck.latest.tag_name}</a></p>}{versionCheck?.asset && <code>{versionCheck.asset.name}</code>}{versionStatus?.stage && <div className="update-progress"><div className="update-progress-head"><span>{versionStatus.running ? '升级中' : (versionStatus.error ? '升级失败' : '升级状态')}</span><b>{versionStatus.progress || 0}%</b></div><div className="progress-bar"><span style={{width:`${Math.max(0, Math.min(100, versionStatus.progress || 0))}%`}}/></div><p className={versionStatus.error ? 'err' : 'muted'}>{versionStatus.message || versionStatus.stage}</p>{versionStatus.stage && <code>{versionStatus.stage}</code>}</div>}<div className="actions"><button onClick={checkVersion} disabled={versionBusy || versionStatus?.running}>{versionBusy ? t.busy : '检查更新'}</button><button onClick={updateVersion} disabled={versionBusy || versionStatus?.running || !versionCheck?.update}>{versionStatus?.running ? '升级中…' : '一键升级'}</button><button className="secondary" onClick={()=>refreshVersionStatus().catch(e=>setMsg(e.message))}>刷新进度</button></div></div></Panel><Panel title="GA 源代码更新"><div className="version-card"><div className="version-head"><GitPullRequest size={18}/><strong>Git 更新</strong><span className={gitStatus?.error ? 'err' : (gitStatus?.latest ? 'ok' : 'warn')}>{gitStatus?.error ? '检查失败' : (gitStatus ? (gitStatus.latest ? '已是最新' : `落后 ${gitStatus.behind || 0} 个提交`) : '未检查')}</span></div><p className="muted">自动 fetch 后对比上游分支；更新只执行 git pull --ff-only。</p>{gitStatus?.root && <code>{gitStatus.root}</code>}<p>分支: {gitStatus?.branch || '-'}　HEAD: {gitStatus?.commit || gitResult?.after || '-'}</p>{gitStatus?.upstream && <p>上游: {gitStatus.upstream}　领先 {gitStatus.ahead || 0} / 落后 {gitStatus.behind || 0}</p>}{gitStatus?.dirty && <p className="warn">工作区有未提交修改</p>}{gitStatus?.error && <p className="err">{gitStatus.error}</p>}{gitStatus?.fetch_error && <pre className="mini-log">{gitStatus.fetch_error}</pre>}{gitResult?.pull && <pre className="mini-log">{gitResult.pull}</pre>}<div className="actions"><button className="secondary" onClick={checkGASource} disabled={gitBusy || busy}>{gitBusy ? t.busy : '检查是否最新'}</button><button onClick={updateGASource} disabled={gitBusy || busy || gitStatus?.latest}>{gitBusy ? t.busy : '更新 GA 源代码'}</button></div></div></Panel><Panel title={t.lists.autostart}><div className="autostart-card"><div className="autostart-head"><Power size={18}/><strong>{t.autostart}</strong><span className={autostart?.enabled ? 'ok' : 'muted'}>{autostart?.supported ? (autostart?.enabled ? t.enabled : t.disabled) : t.unsupported}</span></div><p>{!autostart?.supported ? t.hints.autostartUnsupported : (autostart?.enabled ? t.hints.autostartEnabled : t.hints.autostartDisabled)}</p>{autostart?.path && <code>{autostart.path}</code>}<button onClick={toggleAutostart} disabled={busy || !autostart?.supported}>{autostart?.enabled ? t.disableAutostart : t.enableAutostart}</button></div></Panel><Panel title={t.lists.riskHints}><ul className="risk"><li>{t.root}: {root}</li><li>sche_tasks JSON: {t.backup}</li><li>mykey.py: {t.backup}</li></ul></Panel></div></section>}

@@ -165,5 +165,6 @@ func openBrowser(url string) {
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
+	hideChildWindow(cmd)
 	_ = cmd.Start()
 }

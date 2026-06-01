@@ -495,6 +495,7 @@ func detectTMWebDriverPythonDeps(gaRoot, python string) (bool, []string, string)
 	if strings.TrimSpace(gaRoot) != "" {
 		cmd.Dir = gaRoot
 	}
+	hideChildWindow(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, tmwebdriverRequiredPipPackages(), strings.TrimSpace(string(out) + " " + err.Error())
@@ -537,7 +538,9 @@ func detectTCPListening(host string, port int, timeout time.Duration) (bool, str
 
 func detectChromeRunning() (bool, string) {
 	if runtime.GOOS == "windows" {
-		out, err := exec.Command("tasklist", "/FO", "CSV", "/NH").Output()
+		cmd := exec.Command("tasklist", "/FO", "CSV", "/NH")
+		hideChildWindow(cmd)
+		out, err := cmd.Output()
 		if err != nil {
 			return false, err.Error()
 		}
@@ -547,7 +550,9 @@ func detectChromeRunning() (bool, string) {
 		}
 		return false, "chrome.exe/msedge.exe process not found"
 	}
-	out, err := exec.Command("ps", "-A", "-o", "comm=").Output()
+	cmd := exec.Command("ps", "-A", "-o", "comm=")
+	hideChildWindow(cmd)
+	out, err := cmd.Output()
 	if err != nil {
 		return false, err.Error()
 	}
@@ -730,6 +735,7 @@ func (b *reactAppBridge) start(gaRoot string) error {
 	cmd := exec.Command(py, script)
 	cmd.Dir = gaRoot
 	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1", fmt.Sprintf("GA_REACT_PORT=%d", port))
+	hideChildWindow(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

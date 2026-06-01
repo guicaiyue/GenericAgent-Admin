@@ -1,7 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { api, apiStream } from './lib/api'
 import { confirmDanger } from './lib/danger'
+
+gsap.registerPlugin(useGSAP)
+
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 const fmtTime = (v) => {
   if (!v) return ''
@@ -564,6 +570,7 @@ export default function ChatApp() {
   const streamAbortRef = useRef(null)
   const runSeqRef = useRef(0)
   const queuedRef = useRef([])
+  const chatScope = useRef(null)
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
 
   const applyStreamEvent = (ev, pendingId, clientUserID = '') => {
@@ -884,6 +891,15 @@ export default function ChatApp() {
   const send = async () => {
     const text = prompt.trim()
     const files = attachments.map(({ name, type, dataURL }) => ({ name, type, dataURL }))
+    if (text === '/new' && !files.length) {
+      setPrompt('')
+      if (busy) {
+        setNotice('当前正在执行，完成后可使用 /new 创建新对话')
+        return
+      }
+      await newSession()
+      return
+    }
     if (!text && !files.length) return
     const item = { text, files, llmNo }
     setPrompt(''); setAttachments([])
@@ -944,11 +960,24 @@ export default function ChatApp() {
     }
   }, [messages, busy, autoFollow])
 
+  useGSAP(() => {
+    if (prefersReducedMotion()) return
+    const q = gsap.utils.selector(chatScope)
+    gsap.from(q('.oa-sidebar'), { x: -24, autoAlpha: 0, duration: 0.52, ease: 'power3.out' })
+    gsap.from(q('.oa-topbar, .oa-thread, .oa-composer-wrap'), { y: 18, autoAlpha: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out' })
+  }, { scope: chatScope })
+
+  useGSAP(() => {
+    if (prefersReducedMotion() || !messages.length) return
+    const lastMessage = chatScope.current?.querySelector('.oa-message:last-of-type, .oa-turn:last-of-type')
+    if (lastMessage) gsap.from(lastMessage, { y: 14, autoAlpha: 0, duration: 0.32, ease: 'power2.out' })
+  }, { scope: chatScope, dependencies: [messages.length] })
+
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
   const selectedModelNo = activeModel?.index ?? llmNo
   const isCurrentRunning = busy && streamingSid === sid
 
-  return <div className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
+  return <div ref={chatScope} className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
     <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="oa-side-head">
         <div className="oa-logo"><Bot size={18}/><span>GenericAgent</span></div>

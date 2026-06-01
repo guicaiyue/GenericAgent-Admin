@@ -187,27 +187,32 @@ func (s *Server) filesOpen(w http.ResponseWriter, r *http.Request) {
 }
 
 func openLocalPath(p string, isDir bool, mode string) error {
+	startHidden := func(name string, args ...string) error {
+		cmd := exec.Command(name, args...)
+		hideChildWindow(cmd)
+		return cmd.Start()
+	}
 	switch runtime.GOOS {
 	case "windows":
 		if mode == "folder" {
 			if isDir {
-				return exec.Command("explorer", p).Start()
+				return startHidden("explorer", p)
 			}
-			return exec.Command("explorer", "/select,"+p).Start()
+			return startHidden("explorer", "/select,"+p)
 		}
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", p).Start()
+		return startHidden("rundll32", "url.dll,FileProtocolHandler", p)
 	case "darwin":
 		if mode == "folder" {
 			if isDir {
-				return exec.Command("open", p).Start()
+				return startHidden("open", p)
 			}
-			return exec.Command("open", "-R", p).Start()
+			return startHidden("open", "-R", p)
 		}
-		return exec.Command("open", p).Start()
+		return startHidden("open", p)
 	default:
 		if mode == "folder" && !isDir {
 			p = filepath.Dir(p)
 		}
-		return exec.Command("xdg-open", p).Start()
+		return startHidden("xdg-open", p)
 	}
 }

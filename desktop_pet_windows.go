@@ -214,6 +214,9 @@ type desktopPet struct {
 	dragging       bool
 	dragOffset     point
 	framesByAction map[string][][]byte
+	idleTicks      int
+	idleNudge      int
+	autoActionStep int
 }
 
 var petInstance *desktopPet
@@ -445,6 +448,16 @@ func (p *desktopPet) onTimer() {
 	if !p.visible {
 		return
 	}
+	if p.oneshot == "" && p.active == petActionIdle && p.base == petActionIdle {
+		p.idleTicks++
+		if p.idleTicks >= 32 { // about 4 seconds at petFrameInterval=130ms
+			p.idleTicks = 0
+			p.playNextIdleAction()
+			return
+		}
+	} else {
+		p.idleTicks = 0
+	}
 	action := p.currentAction()
 	p.updateActionFrame(action, p.frameIndex)
 	p.frameIndex++
@@ -458,6 +471,28 @@ func (p *desktopPet) onTimer() {
 	}
 }
 
+func (p *desktopPet) playNextIdleAction() {
+	sequence := []struct {
+		action string
+		ticks  int
+	}{
+		{petActionWaving, 14},
+		{petActionJumping, 16},
+		{petActionWaiting, 18},
+		{petActionRunning, 18},
+		{petActionReview, 18},
+	}
+	for tries := 0; tries < len(sequence); tries++ {
+		item := sequence[p.autoActionStep%len(sequence)]
+		p.autoActionStep++
+		if _, ok := p.framesByAction[item.action]; ok {
+			p.applyAction(item.action, item.ticks)
+			return
+		}
+	}
+	p.applyAction(petActionWaving, 14)
+}
+
 func (p *desktopPet) currentAction() string {
 	if p.oneshot != "" && p.oneshtTicks > 0 {
 		return p.oneshot
@@ -469,6 +504,7 @@ func (p *desktopPet) currentAction() string {
 }
 
 func (p *desktopPet) applyAction(action string, ticks int) {
+	requested := action
 	if _, ok := p.framesByAction[action]; !ok {
 		action = petActionIdle
 	}
@@ -491,7 +527,12 @@ func (p *desktopPet) applyAction(action string, ticks int) {
 		p.oneshot = ""
 		p.oneshtTicks = 0
 	}
+	p.idleTicks = 0
 	p.frameIndex = 0
+	if requested != action {
+		log.Printf("desktop pet action %q not found; fallback to %q", requested, action)
+	}
+	log.Printf("desktop pet action=%s ticks=%d loop=%v", action, ticks, loop)
 	if p.hwnd != 0 {
 		p.updateActionFrame(p.currentAction(), 0)
 	}

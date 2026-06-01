@@ -110,7 +110,9 @@ func checkTool(name string, args ...string) setupToolStatus {
 	st.Path = path
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, name, args...)
+	hideChildWindow(cmd)
+	out, err := cmd.CombinedOutput()
 	if err != nil && strings.TrimSpace(string(out)) == "" {
 		st.Error = err.Error()
 	}
@@ -122,6 +124,7 @@ func chooseDirectory(start string) (string, error) {
 	if runtime.GOOS == "windows" {
 		ps := `$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Select GenericAgent directory'; $d.ShowNewFolderButton = $true; if ($env:GA_ADMIN_BROWSE_START -and (Test-Path -LiteralPath $env:GA_ADMIN_BROWSE_START)) { $d.SelectedPath = $env:GA_ADMIN_BROWSE_START }; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.SelectedPath }`
 		cmd := exec.Command("powershell", "-NoProfile", "-STA", "-Command", ps)
+		hideChildWindow(cmd)
 		cmd.Env = append(os.Environ(), "GA_ADMIN_BROWSE_START="+start)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -139,6 +142,7 @@ func runGitCommand(ctx context.Context, root string, args ...string) (string, er
 var runGitCommandFunc = func(ctx context.Context, root string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = root
+	hideChildWindow(cmd)
 	out, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(out))
 	if err != nil {
@@ -331,6 +335,7 @@ func (s *Server) setupInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cmd := exec.Command("git", "clone", "https://github.com/lsdefine/GenericAgent", abs)
+	hideChildWindow(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		bad(w, 500, strings.TrimSpace(string(out))+": "+err.Error())

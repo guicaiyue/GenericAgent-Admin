@@ -160,6 +160,7 @@ func StartGoal(root string, opt GoalStartOptions) (GoalMeta, error) {
 		args = append(args, "--llm_no", strconv.Itoa(*opt.LLMNo))
 	}
 	cmd := exec.Command(pythonPath, args...)
+	hideChildWindow(cmd)
 	cmd.Dir = root
 	cmd.Env = goalCommandEnv(os.Environ(), statePath)
 	cmd.Stdout = logFile
@@ -875,7 +876,9 @@ func killExactPID(pid int) error {
 		// must never kill unrelated child Python/tool processes that may belong to
 		// another foreground GenericAgent session. Treat an already-exited PID as a
 		// successful idempotent stop so stale UI state can still be cleaned up.
-		if err := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/F").Run(); err != nil {
+		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/F")
+		hideChildWindow(cmd)
+		if err := cmd.Run(); err != nil {
 			if !isPIDRunning(pid) {
 				return nil
 			}
@@ -895,7 +898,9 @@ func isPIDRunning(pid int) bool {
 		return false
 	}
 	if runtime.GOOS == "windows" {
-		out, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH").Output()
+		cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH")
+		hideChildWindow(cmd)
+		out, err := cmd.Output()
 		if err != nil {
 			return false
 		}
