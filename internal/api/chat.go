@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -548,6 +549,12 @@ func resolveChatWorkerScript() (string, error) {
 	if exe, err := os.Executable(); err == nil {
 		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "cmd", "chat_worker.py"))
 		candidates = append(candidates, filepath.Join(filepath.Dir(filepath.Dir(exe)), "cmd", "chat_worker.py"))
+	}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		// In `go run`, os.Executable() points to a temporary build directory and
+		// main changes cwd to that directory. runtime.Caller keeps the source path,
+		// so this finds <repo>/cmd/chat_worker.py for development runs.
+		candidates = append(candidates, filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(file))), "cmd", "chat_worker.py"))
 	}
 	for _, script := range candidates {
 		if st, err := os.Stat(script); err == nil && !st.IsDir() {

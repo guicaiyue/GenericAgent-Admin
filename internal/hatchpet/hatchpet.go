@@ -36,6 +36,7 @@ type Status struct {
 	SkillName        string        `json:"skill_name"`
 	EmbeddedRoot     string        `json:"embedded_root"`
 	DefaultExportDir string        `json:"default_export_dir"`
+	ExportPath       string        `json:"export_path"`
 	Exported         bool          `json:"exported"`
 	Files            int           `json:"files"`
 	Bytes            int64         `json:"bytes"`
@@ -57,11 +58,19 @@ type MemoryStatus struct {
 }
 
 func DefaultExportDir() (string, error) {
-	home, err := os.UserHomeDir()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".codex", "skills", SkillName), nil
+	return filepath.Join(cwd, "tools", SkillName), nil
+}
+
+func DefaultExportDirForGARoot(gaRoot string) (string, error) {
+	cleanRoot := filepath.Clean(strings.TrimSpace(gaRoot))
+	if cleanRoot == "" || cleanRoot == "." || cleanRoot == string(filepath.Separator) {
+		return "", fmt.Errorf("ga_root is required for GA Admin hatch-pet tool export")
+	}
+	return filepath.Join(cleanRoot, "tools", SkillName), nil
 }
 
 func FS() (fs.FS, error) { return fs.Sub(Skill, embeddedRoot) }
@@ -101,7 +110,7 @@ func StatusAt(dest string) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	st := Status{SkillName: SkillName, EmbeddedRoot: embeddedRoot, DefaultExportDir: dest, Files: len(manifest), Bytes: bytes, Manifest: manifest}
+	st := Status{SkillName: SkillName, EmbeddedRoot: embeddedRoot, DefaultExportDir: dest, ExportPath: dest, Files: len(manifest), Bytes: bytes, Manifest: manifest}
 	for _, entry := range manifest {
 		if _, err := os.Stat(filepath.Join(dest, filepath.FromSlash(entry.Path))); err != nil {
 			st.Missing = append(st.Missing, entry.Path)

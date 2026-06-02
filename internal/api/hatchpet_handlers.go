@@ -18,7 +18,7 @@ func (s *Server) hatchPetStatus(w http.ResponseWriter, r *http.Request) {
 		bad(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	st, err := hatchpet.StatusAt("")
+	st, err := hatchpet.StatusAt(s.defaultHatchPetExportDir())
 	if err != nil {
 		bad(w, 500, err.Error())
 		return
@@ -41,7 +41,11 @@ func (s *Server) hatchPetExport(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, err.Error())
 		return
 	}
-	st, err := hatchpet.Export(req.Path, req.Overwrite)
+	dest := req.Path
+	if dest == "" {
+		dest = s.defaultHatchPetExportDir()
+	}
+	st, err := hatchpet.Export(dest, req.Overwrite)
 	if err != nil {
 		bad(w, 500, err.Error())
 		return
@@ -71,6 +75,16 @@ func (s *Server) hatchPetInstallMemory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, st)
 }
 
+func (s *Server) defaultHatchPetExportDir() string {
+	if s != nil && s.CfgStore != nil && s.CfgStore.Cfg.GARoot != "" {
+		if dir, err := hatchpet.DefaultExportDirForGARoot(s.CfgStore.Cfg.GARoot); err == nil {
+			return dir
+		}
+	}
+	dir, _ := hatchpet.DefaultExportDir()
+	return dir
+}
+
 func (s *Server) hatchPetOpen(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		bad(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -83,12 +97,7 @@ func (s *Server) hatchPetOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	dir := req.Path
 	if dir == "" {
-		var err error
-		dir, err = hatchpet.DefaultExportDir()
-		if err != nil {
-			bad(w, 500, err.Error())
-			return
-		}
+		dir = s.defaultHatchPetExportDir()
 	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

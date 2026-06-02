@@ -4,11 +4,16 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/draw"
 	"image/png"
+	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -21,9 +26,10 @@ const (
 	petFrameW = 192
 	petFrameH = 208
 
-	petRoamStep     int32 = 6
-	petRoamMinTicks       = 24
-	petRoamMaxTicks       = 44
+	petRoamStep       int32 = 6
+	petRoamMinTicks         = 24
+	petRoamMaxTicks         = 44
+	petIdleDelayTicks       = 32
 
 	petActionIdle         = "idle"
 	petActionRunningRight = "running-right"
@@ -37,6 +43,10 @@ const (
 
 	petFrameInterval = 130
 	petActionMessage = 0x0400 + 90
+	petJumpHeight    = int32(52)
+
+	petMenuOpenChat = 1091
+	petMenuHide     = 1101
 )
 
 const (
@@ -53,18 +63,25 @@ const (
 	swShowNoAct  = 4
 	swShowNormal = 1
 
-	wmDestroy     = 0x0002
-	wmClose       = 0x0010
-	wmShowPet     = 0x0400 + 71
-	wmHidePet     = 0x0400 + 72
-	wmTogglePet   = 0x0400 + 73
-	wmTimer       = 0x0113
-	wmLButtonDown = 0x0201
-	wmLButtonUp   = 0x0202
-	wmMouseMove   = 0x0200
-	wmRButtonUp   = 0x0205
-	wmNCHitTest   = 0x0084
-	htCaption     = 2
+	wmDestroy      = 0x0002
+	wmClose        = 0x0010
+	wmShowPet      = 0x0400 + 71
+	wmHidePet      = 0x0400 + 72
+	wmTogglePet    = 0x0400 + 73
+	wmReloadPet    = 0x0400 + 74
+	wmTimer        = 0x0113
+	wmLButtonDown  = 0x0201
+	wmLButtonUp    = 0x0202
+	wmMouseMove    = 0x0200
+	wmRButtonUp    = 0x0205
+	wmNCHitTest    = 0x0084
+	wmCommand      = 0x0111
+	mfString       = 0x00000000
+	mfSeparator    = 0x00000800
+	tpmRightButton = 0x0002
+	tpmReturnCmd   = 0x0100
+	htClient       = 1
+	htCaption      = 2
 
 	ulwAlpha     = 0x00000002
 	acSrcOver    = 0x00
@@ -111,6 +128,38 @@ func petActionByID(id uintptr) string {
 		return petAnimations[idx].Name
 	}
 	return petActionIdle
+}
+
+func petAnimationByName(action string) (petAnimation, bool) {
+	for _, anim := range petAnimations {
+		if anim.Name == action {
+			return anim, true
+		}
+	}
+	return petAnimation{}, false
+}
+
+func petFrameHoldTicks(action string) int {
+	switch action {
+	case petActionWaving, petActionJumping:
+		return 3
+	case petActionFailed:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func petDefaultActionTicks(action string) int {
+	anim, ok := petAnimationByName(action)
+	if !ok {
+		return 0
+	}
+	ticks := anim.Frames * petFrameHoldTicks(action)
+	if !anim.Loop {
+		ticks += 2 // Hold the last pose briefly so short one-shot actions do not flicker away.
+	}
+	return ticks
 }
 
 type wndClassEx struct {
@@ -191,6 +240,11 @@ var (
 	procSetCapture          = user32.NewProc("SetCapture")
 	procReleaseCapture      = user32.NewProc("ReleaseCapture")
 	procGetCursorPos        = user32.NewProc("GetCursorPos")
+	procCreatePopupMenu     = user32.NewProc("CreatePopupMenu")
+	procAppendMenu          = user32.NewProc("AppendMenuW")
+	procTrackPopupMenu      = user32.NewProc("TrackPopupMenu")
+	procDestroyMenu         = user32.NewProc("DestroyMenu")
+	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
 
 	procCreateCompatibleDC = gdi32.NewProc("CreateCompatibleDC")
 	procCreateDIBSection   = gdi32.NewProc("CreateDIBSection")
@@ -207,7 +261,10 @@ type desktopPet struct {
 	height int32
 	hwnd   syscall.Handle
 
+	openChat func()
+
 	mu              sync.Mutex
+	requestedPNG    []byte
 	visible         bool
 	frameIndex      int
 	active          string
@@ -218,6 +275,7 @@ type desktopPet struct {
 	dragging        bool
 	dragOffset      point
 	dragRestoreBase string
+	dragAction      string
 	framesByAction  map[string][][]byte
 	idleTicks       int
 	idleNudge       int
@@ -225,12 +283,43 @@ type desktopPet struct {
 	roamTicks       int
 	roamDX          int32
 	roamRestoreBase string
+	jumpTicks       int
+	jumpTotalTicks  int
+	jumpBaseY       int32
+	jumpOffsetY     int32
 }
 
 var petInstance *desktopPet
 
-func startDesktopPet() func() {
-	pet, err := newDesktopPet()
+func switchDesktopPet(petID string) error {
+	petID = strings.TrimSpace(petID)
+	if petID == "" {
+		return nil
+	}
+	if strings.Contains(petID, "..") || strings.ContainsAny(petID, `/\\`) {
+		return errors.New("invalid pet id")
+	}
+	data, err := loadDesktopPetSpritesheetPNG(petID)
+	if err != nil {
+		return err
+	}
+	if petInstance == nil {
+		gaAdminPetSpritesheetPNG = data
+		return nil
+	}
+	return petInstance.reloadSpritesheet(data)
+}
+
+func loadDesktopPetSpritesheetPNG(petID string) ([]byte, error) {
+	rel := filepath.Join("assets", "ga-admin-pets", petID, "spritesheet.png")
+	if data, err := os.ReadFile(rel); err == nil {
+		return data, nil
+	}
+	return fs.ReadFile(gaAdminPetAssetsFS, filepath.ToSlash(rel))
+}
+
+func startDesktopPet(openChat func()) func() {
+	pet, err := newDesktopPet(openChat)
 	if err != nil {
 		log.Printf("desktop pet disabled: %v", err)
 		return func() {}
@@ -264,8 +353,54 @@ func postPetMessage(message uint32) {
 	procPostMessage.Call(uintptr(petInstance.hwnd), uintptr(message), 0, 0)
 }
 
-func newDesktopPet() (*desktopPet, error) {
-	img, err := png.Decode(bytes.NewReader(gaAdminPetSpritesheetPNG))
+func (p *desktopPet) reloadSpritesheet(data []byte) error {
+	if _, err := decodePetSpritesheet(data); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	p.requestedPNG = append(p.requestedPNG[:0], data...)
+	p.mu.Unlock()
+	postPetMessage(wmReloadPet)
+	return nil
+}
+
+func decodePetSpritesheet(data []byte) (image.Image, error) {
+	return png.Decode(bytes.NewReader(data))
+}
+
+func (p *desktopPet) applyRequestedSpritesheet() {
+	p.mu.Lock()
+	if len(p.requestedPNG) == 0 {
+		p.mu.Unlock()
+		return
+	}
+	data := append([]byte(nil), p.requestedPNG...)
+	p.requestedPNG = nil
+	p.mu.Unlock()
+	img, err := decodePetSpritesheet(data)
+	if err != nil {
+		log.Printf("desktop pet reload failed: %v", err)
+		return
+	}
+	framesByAction := map[string][][]byte{}
+	framesAll := [][]byte{}
+	for _, anim := range petAnimations {
+		frames := extractPetFrames(img, anim.Row, anim.Frames)
+		framesByAction[anim.Name] = frames
+		framesAll = append(framesAll, frames...)
+	}
+	p.framesByAction = framesByAction
+	p.frames = framesAll
+	p.frameIndex = 0
+	p.active = petActionIdle
+	p.base = petActionIdle
+	p.oneshot = ""
+	p.oneshtTicks = 0
+	p.updateActionFrame(p.active, 0)
+}
+
+func newDesktopPet(openChat func()) (*desktopPet, error) {
+	img, err := decodePetSpritesheet(gaAdminPetSpritesheetPNG)
 	if err != nil {
 		return nil, err
 	}
@@ -275,6 +410,7 @@ func newDesktopPet() (*desktopPet, error) {
 		visible:        true,
 		active:         petActionIdle,
 		base:           petActionIdle,
+		openChat:       openChat,
 		framesByAction: map[string][][]byte{},
 	}
 	for _, anim := range petAnimations {
@@ -405,6 +541,9 @@ func (p *desktopPet) wndProc(hwnd syscall.Handle, message uint32, wparam, lparam
 	case petActionMessage:
 		p.applyAction(petActionByID(wparam), int(lparam))
 		return 0
+	case wmReloadPet:
+		p.applyRequestedSpritesheet()
+		return 0
 	case wmLButtonDown:
 		var cur point
 		procGetCursorPos.Call(uintptr(unsafe.Pointer(&cur)))
@@ -426,11 +565,13 @@ func (p *desktopPet) wndProc(hwnd syscall.Handle, message uint32, wparam, lparam
 		procReleaseCapture.Call()
 		return 0
 	case wmRButtonUp:
-		p.visible = false
-		procShowWindow.Call(uintptr(hwnd), swHide)
+		p.showContextMenu(hwnd)
+		return 0
+	case wmCommand:
+		p.handleMenuCommand(uint16(wparam & 0xffff))
 		return 0
 	case wmNCHitTest:
-		return htCaption
+		return htClient
 	case wmClose:
 		procDestroyWindow.Call(uintptr(hwnd))
 		return 0
@@ -443,24 +584,66 @@ func (p *desktopPet) wndProc(hwnd syscall.Handle, message uint32, wparam, lparam
 	return r
 }
 
+func (p *desktopPet) showContextMenu(hwnd syscall.Handle) {
+	menu, _, err := procCreatePopupMenu.Call()
+	if menu == 0 {
+		log.Printf("create desktop pet menu failed: %v", err)
+		return
+	}
+	defer procDestroyMenu.Call(menu)
+
+	p.appendMenuItem(menu, petMenuOpenChat, "打开对话 (/chat)")
+	p.appendMenuItem(menu, petMenuHide, "隐藏桌宠")
+
+	var cur point
+	procGetCursorPos.Call(uintptr(unsafe.Pointer(&cur)))
+	procSetForegroundWindow.Call(uintptr(hwnd))
+	cmd, _, _ := procTrackPopupMenu.Call(menu, tpmRightButton|tpmReturnCmd, uintptr(cur.X), uintptr(cur.Y), 0, uintptr(hwnd), 0)
+	if cmd != 0 {
+		p.handleMenuCommand(uint16(cmd))
+	}
+}
+
+func (p *desktopPet) appendMenuItem(menu uintptr, id uint16, text string) {
+	label, _ := syscall.UTF16PtrFromString(text)
+	procAppendMenu.Call(menu, mfString, uintptr(id), uintptr(unsafe.Pointer(label)))
+}
+
+func (p *desktopPet) handleMenuCommand(id uint16) {
+	switch id {
+	case petMenuOpenChat:
+		if p.openChat != nil {
+			go p.openChat()
+		}
+	case petMenuHide:
+		p.visible = false
+		procShowWindow.Call(uintptr(p.hwnd), swHide)
+	}
+}
+
 func (p *desktopPet) onTimer() {
 	if !p.visible {
 		return
 	}
+	if p.jumpTicks > 0 && !p.dragging {
+		p.stepJump()
+	}
 	if !p.dragging && p.roamTicks > 0 {
 		p.stepRoam()
-	} else if p.oneshot == "" {
+	} else if p.dragging {
+		p.idleTicks = 0
+	} else if p.oneshot == "" && p.base == petActionIdle {
 		p.idleTicks++
-		if p.idleTicks >= 32 { // about 4 seconds at petFrameInterval=130ms
+		if p.idleTicks >= petIdleDelayTicks {
 			p.idleTicks = 0
 			p.playNextIdleAction()
-			return
 		}
 	} else {
 		p.idleTicks = 0
 	}
 	action := p.currentAction()
-	p.updateActionFrame(action, p.frameIndex)
+	holdTicks := petFrameHoldTicks(action)
+	p.updateActionFrame(action, p.frameIndex/holdTicks)
 	p.frameIndex++
 	if p.oneshtTicks > 0 {
 		p.oneshtTicks--
@@ -507,6 +690,7 @@ func (p *desktopPet) startRoam(dx int32, ticks int) {
 	if dx == 0 {
 		return
 	}
+	p.stopJump()
 	if ticks <= 0 {
 		ticks = petRoamMinTicks
 	}
@@ -576,7 +760,75 @@ func (p *desktopPet) stepRoam() {
 	}
 }
 
+func (p *desktopPet) stopJump() {
+	if p.hwnd != 0 && p.jumpTicks > 0 && p.jumpOffsetY != 0 {
+		var wr rect
+		procGetWindowRect.Call(uintptr(p.hwnd), uintptr(unsafe.Pointer(&wr)))
+		procSetWindowPos.Call(uintptr(p.hwnd), ^uintptr(0), uintptr(wr.Left), uintptr(p.jumpBaseY), 0, 0, 0x0001|0x0010|0x0040)
+	}
+	p.jumpTicks = 0
+	p.jumpTotalTicks = 0
+	p.jumpBaseY = 0
+	p.jumpOffsetY = 0
+}
+
+func (p *desktopPet) startJump(ticks int) {
+	if p.hwnd == 0 || p.dragging {
+		return
+	}
+	if ticks <= 0 {
+		ticks = 15
+	}
+	if p.jumpTicks <= 0 || p.jumpOffsetY == 0 {
+		var wr rect
+		procGetWindowRect.Call(uintptr(p.hwnd), uintptr(unsafe.Pointer(&wr)))
+		p.jumpBaseY = wr.Top
+	} else {
+		p.stopJump()
+		var wr rect
+		procGetWindowRect.Call(uintptr(p.hwnd), uintptr(unsafe.Pointer(&wr)))
+		p.jumpBaseY = wr.Top
+	}
+	p.jumpTotalTicks = ticks
+	p.jumpTicks = ticks
+	p.jumpOffsetY = 0
+}
+
+func (p *desktopPet) stepJump() {
+	if p.hwnd == 0 || p.jumpTicks <= 0 {
+		return
+	}
+	if p.jumpTotalTicks <= 0 {
+		p.jumpTotalTicks = p.jumpTicks
+	}
+	elapsed := p.jumpTotalTicks - p.jumpTicks + 1
+	if elapsed < 0 {
+		elapsed = 0
+	} else if elapsed > p.jumpTotalTicks {
+		elapsed = p.jumpTotalTicks
+	}
+	t := float64(elapsed) / float64(p.jumpTotalTicks)
+	offset := -int32(float64(petJumpHeight) * 4 * t * (1 - t))
+	var wr rect
+	procGetWindowRect.Call(uintptr(p.hwnd), uintptr(unsafe.Pointer(&wr)))
+	x := wr.Left
+	y := p.jumpBaseY + offset
+	if y < 0 {
+		y = 0
+	}
+	procSetWindowPos.Call(uintptr(p.hwnd), ^uintptr(0), uintptr(x), uintptr(y), 0, 0, 0x0001|0x0010|0x0040)
+	p.jumpOffsetY = offset
+	p.jumpTicks--
+	if p.jumpTicks <= 0 {
+		procSetWindowPos.Call(uintptr(p.hwnd), ^uintptr(0), uintptr(x), uintptr(p.jumpBaseY), 0, 0, 0x0001|0x0010|0x0040)
+		p.jumpTotalTicks = 0
+		p.jumpBaseY = 0
+		p.jumpOffsetY = 0
+	}
+}
+
 func (p *desktopPet) beginDrag(cursorX int32, offset point) {
+	p.stopJump()
 	p.dragging = true
 	p.dragOffset = offset
 	p.lastDragX = cursorX
@@ -589,18 +841,24 @@ func (p *desktopPet) beginDrag(cursorX int32, offset point) {
 	p.roamRestoreBase = ""
 	p.oneshot = ""
 	p.oneshtTicks = 0
-	p.active = petActionRunningRight
-	p.frameIndex = 0
-	p.updateActionFrame(p.active, 0)
+	p.base = p.dragRestoreBase
+	p.dragAction = petActionRunningRight
+	p.setDragAction(p.dragAction)
 }
 
 func (p *desktopPet) updateDrag(cursorX int32) {
+	action := p.dragAction
+	if action == "" {
+		action = petActionRunningRight
+	}
 	if cursorX > p.lastDragX+1 {
-		p.setDragAction(petActionRunningRight)
+		action = petActionRunningRight
 	} else if cursorX < p.lastDragX-1 {
-		p.setDragAction(petActionRunningLeft)
+		action = petActionRunningLeft
 	}
 	p.lastDragX = cursorX
+	p.dragAction = action
+	p.setDragAction(action)
 }
 
 func (p *desktopPet) finishDrag() {
@@ -610,6 +868,7 @@ func (p *desktopPet) finishDrag() {
 		restore = petActionIdle
 	}
 	p.dragRestoreBase = ""
+	p.dragAction = ""
 	p.active = restore
 	p.base = restore
 	p.oneshot = ""
@@ -642,19 +901,41 @@ func (p *desktopPet) setDragAction(action string) {
 	p.updateActionFrame(action, 0)
 }
 
+func (p *desktopPet) setDragActionForTicks(action string, ticks int) {
+	if _, ok := p.framesByAction[action]; !ok {
+		action = petActionIdle
+	}
+	if ticks <= 0 {
+		ticks = 3
+	}
+	p.base = p.dragRestoreBase
+	if p.base == "" {
+		p.base = petActionIdle
+	}
+	p.active = p.base
+	if p.oneshot == action {
+		if p.oneshtTicks < ticks {
+			p.oneshtTicks = ticks
+		}
+		return
+	}
+	p.oneshot = action
+	p.oneshtTicks = ticks
+	p.frameIndex = 0
+	p.updateActionFrame(action, 0)
+}
+
 func (p *desktopPet) applyAction(action string, ticks int) {
 	requested := action
 	if _, ok := p.framesByAction[action]; !ok {
 		action = petActionIdle
 	}
+	anim, ok := petAnimationByName(action)
 	loop := true
-	for _, anim := range petAnimations {
-		if anim.Name == action {
-			loop = anim.Loop
-			if ticks == 0 && !anim.Loop {
-				ticks = anim.Frames * 3
-			}
-			break
+	if ok {
+		loop = anim.Loop
+		if ticks == 0 && !anim.Loop {
+			ticks = petDefaultActionTicks(action)
 		}
 	}
 	if !loop || ticks > 0 {
@@ -665,6 +946,11 @@ func (p *desktopPet) applyAction(action string, ticks int) {
 		p.active = action
 		p.oneshot = ""
 		p.oneshtTicks = 0
+	}
+	if action == petActionJumping && ticks > 0 {
+		p.startJump(ticks)
+	} else if action != petActionJumping {
+		p.stopJump()
 	}
 	p.idleTicks = 0
 	p.frameIndex = 0

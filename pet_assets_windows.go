@@ -2,7 +2,10 @@
 
 package main
 
-import _ "embed"
+import "embed"
 
-//go:embed assets/ga-admin-pets/upload-pet/spritesheet.png
+//go:embed assets/ga-admin-pets/*/spritesheet.png
+var gaAdminPetAssetsFS embed.FS
+
+//go:embed assets/ga-admin-pets/ga-navigator/spritesheet.png
 var gaAdminPetSpritesheetPNG []byte

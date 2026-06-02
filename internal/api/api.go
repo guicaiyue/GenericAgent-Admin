@@ -35,6 +35,7 @@ type Server struct {
 	Static      fs.FS
 	ReactApp    *reactAppBridge
 	PetEvent    func(string)
+	PetSwitch   func(string) error
 	ChatMu      sync.Mutex
 	ChatRuns    map[string]*chatRun
 	ChatWorkers map[string]*chatWorker
@@ -73,6 +74,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/hatch-pet/export", s.requireDangerousConfirm(s.hatchPetExport))
 	mux.HandleFunc("/api/hatch-pet/install-memory", s.requireDangerousConfirm(s.hatchPetInstallMemory))
 	mux.HandleFunc("/api/hatch-pet/open", s.hatchPetOpen)
+	mux.HandleFunc("/api/pets", s.petsHandler)
+	mux.HandleFunc("/api/pets/active", s.petsActiveHandler)
 	// Built-in BBS service compatible with GA reflect/agent_team_worker.py
 	mux.HandleFunc("/api/bbs/status", s.bbsStatus)
 	mux.HandleFunc("/api/bbs/config", s.requireDangerousConfirm(s.bbsConfigHandler))
@@ -175,7 +178,7 @@ var riskCatalogItems = []riskCatalogItem{
 	{Path: "/api/goals/stop", Level: "dangerous", Action: "stop_goal", Reason: "stops autonomous GA goal process by recorded PID"},
 	{Path: "/api/goals/delete", Level: "dangerous", Action: "delete_goal", Reason: "deletes goal state/output files"},
 	{Path: "/api/models/export", Level: "dangerous", Action: "export_models", Reason: "writes active GA model configuration"},
-	{Path: "/api/hatch-pet/export", Level: "dangerous", Action: "export_hatch_pet", Reason: "writes embedded hatch-pet skill files to a Codex skills directory"},
+	{Path: "/api/hatch-pet/export", Level: "dangerous", Action: "export_hatch_pet", Reason: "writes embedded hatch-pet toolchain files to the configured GA tools directory"},
 	{Path: "/api/hatch-pet/install-memory", Level: "dangerous", Action: "install_pet_memory_sops", Reason: "writes pet SOPs and updates global_mem_insight.txt under the configured GA memory directory"},
 }
 

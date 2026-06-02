@@ -14,9 +14,11 @@ const (
 	petActionReview       = "review"
 )
 
-func startDesktopPet() func()                              { return func() {} }
+func startDesktopPet(openChat func()) func()               { return func() {} }
 func showDesktopPet()                                      {}
 func hideDesktopPet()                                      {}
 func toggleDesktopPet()                                    {}
 func setDesktopPetAction(action string)                    {}
 func setDesktopPetActionForTicks(action string, ticks int) {}
+
+func switchDesktopPet(petID string) error { return nil }

@@ -3,6 +3,12 @@
   "description": "Standalone GA Admin pets served from the GA Admin web bundle; no Codex dependency.",
   "pets": [
     {
+      "id": "ga-navigator",
+      "name": "GA Navigator",
+      "manifest": "/ga-admin-pets/ga-navigator/pet.json",
+      "spritesheet": "/ga-admin-pets/ga-navigator/spritesheet.webp"
+    },
+    {
       "id": "upload-pet",
       "name": "White Chibi Angel",
       "manifest": "/ga-admin-pets/upload-pet/pet.json",

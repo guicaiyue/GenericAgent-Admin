@@ -23,7 +23,7 @@ const I18N = {
   zh: {
     appName: 'GA Admin', tagline: 'GenericAgent 生命周期控制面', root: 'GenericAgent 根目录', setupTitle: '首次配置 GenericAgent', setupDesc: '请选择已有 GA 根目录，或一键安装到新目录。', validateRoot: '验证并使用', installGA: '安装 GA', installPath: '安装目录', setupOk: 'GA 路径已配置', installDone: 'GA 已安装并配置', browse: '选择目录', checkEnv: '检查 Python / Git', envReady: '环境已就绪', envMissing: '环境缺失', save: '保存', refresh: '刷新', busy: '执行中', ready: '就绪', error: '错误', empty: '暂无', enabled: '启用', disabled: '停用', start: '启动', stop: '停止', running: '运行中', stopped: '已停止', language: '语言', copy: '复制', clear: '清空', delete: '删除', show: '显示', hide: '隐藏', search: '搜索', read: '读取', create: '创建', remove: '删除', backup: '写操作会自动备份', autostart: '开机自启', enableAutostart: '开启自启', disableAutostart: '关闭自启', unsupported: '不支持',
     nav: { overview: '总览', chat: '对话', control: '控制面', files: '文件', tasks: '任务', bbs: 'BBS 协作', pets: '桌宠', memory: '记忆', channels: '通道', autonomous: '自主进化', schedule: '定时', goals: 'Goal 模式', models: '模型', settings: '配置', logs: '日志' },
-    desc: { overview: '从 GA 的功能域理解并接管生命周期。', chat: '迁移自 reactapp 的 GA 原生对话、文件上传和流式聊天界面。', control: '运行前检查、能力地图、风险摘要与最近报告。', files: '安全浏览 GA 根目录内文本文件，支持 tail 与搜索。', pets: '安装 GA 桌宠制作 SOP，让 GenericAgent 直接知道 ga-admin-pets 与 hatch-pet 工作流。', tasks: '普通会话、任务文件、批处理入口、任务型服务与 sche_tasks 定时任务。', bbs: '内置 team_work BBS：发布任务帖，供 reflect/agent_team_worker.py 接单协作。', memory: '分层记忆、SOP 与工具能力索引。', channels: '桌面、TUI、Web、IM Bot 等前端入口。', autonomous: '反思、自主运行、Goal Mode 与团队 Worker。', schedule: 'sche_tasks JSON 定时任务详情、编辑、创建与删除。', goals: '复用 GA Goal Mode SOP 与 reflect/goal_mode.py 的持续目标控制台。', models: '读取/预览/写回 GA mykey.py 模型配置。', settings: '配置 GA 根目录、Python、聊天数据目录与 Chat Python 代理。', logs: '进程状态与输出日志。' },
+    desc: { overview: '从 GA 的功能域理解并接管生命周期。', chat: '迁移自 reactapp 的 GA 原生对话、文件上传和流式聊天界面。', control: '运行前检查、能力地图、风险摘要与最近报告。', files: '安全浏览 GA 根目录内文本文件，支持 tail 与搜索。', pets: 'GA Admin 内置桌宠工具链：安装 SOP、导出到 GA tools/hatch-pet，不依赖 Codex 目录。', tasks: '普通会话、任务文件、批处理入口、任务型服务与 sche_tasks 定时任务。', bbs: '内置 team_work BBS：发布任务帖，供 reflect/agent_team_worker.py 接单协作。', memory: '分层记忆、SOP 与工具能力索引。', channels: '桌面、TUI、Web、IM Bot 等前端入口。', autonomous: '反思、自主运行、Goal Mode 与团队 Worker。', schedule: 'sche_tasks JSON 定时任务详情、编辑、创建与删除。', goals: '复用 GA Goal Mode SOP 与 reflect/goal_mode.py 的持续目标控制台。', models: '读取/预览/写回 GA mykey.py 模型配置。', settings: '配置 GA 根目录、Python、聊天数据目录与 Chat Python 代理。', logs: '进程状态与输出日志。' },
     cards: { processes: '进程', running: '运行中', stopped: '已停止', memoryLayers: '记忆层', sopTools: 'SOP/工具', schedule: '定时任务', enabledTasks: '已启用', reports: '报告', coreFiles: '核心文件', reflect: '反思脚本', health: 'GA 健康', capabilities: '能力', risks: '风险', version: '版本管理' },
     lists: { serviceGroups: '服务域', coreFiles: '核心文件', reflect: 'Reflect / Autonomous', frontends: '前端 / 通道', memory: '记忆层级', sop: 'SOP 与工具', taskServices: '任务服务', frontendServices: '前端服务', reflectServices: '反思服务', reflectScripts: '反思脚本', scheduledTasks: '定时任务', recentReports: '最近报告', processes: '进程', generatedPreview: '生成预览', riskHints: '接管提示', autostart: '开机自启', capabilities: '能力地图', readiness: '运行前检查', fileList: '文件列表', filePreview: '文件预览', searchResults: '搜索结果', editor: '编辑器' },
     hints: { rootSaved: 'GA 根目录已保存', fileSaved: '文件已保存并备份旧文件', taskSaved: '任务已保存并备份旧文件', taskDeleted: '任务已删除并备份', taskToggled: '任务状态已更新', modelsSaved: 'mykey.py 已备份并写回', savedSecret: '已保存；输入新值可替换', secret: 'API Key / Token', noFrontend: '未发现前端服务', noReflect: '未发现 reflect 服务', noTasks: '暂无 sche_tasks/*.json', noLogs: '暂无日志', previewHelp: '点击“预览”查看配置；点击“写回 mykey.py”会先备份再覆盖 GA 的 mykey.py。', modelSource: '来源', secretHidden: '已隐藏真实密钥', addProfile: '新增 Profile', preview: '预览', writeMykey: '写回 mykey.py', filePath: '相对路径', searchText: '搜索文本', tailLines: '尾部行数', newTaskId: 'new_task', jsonHelp: 'JSON 需为对象；保存/删除会生成 .bak 时间戳。', autostartEnabled: '已开启：用户登录后自动启动 GA Admin。', autostartDisabled: '未开启：需要手动启动 GA Admin。', autostartUnsupported: '当前平台暂不支持自动注册。', autostartChanged: '开机自启状态已更新', goalObjectiveRequired: '目标不能为空', goalObjectiveTooLarge: '目标超过 16384 字节', goalBudgetInteger: '预算分钟必须是整数', goalBudgetPositive: '预算分钟必须大于 0', goalBudgetTooLarge: '预算分钟不能超过 43200', goalTurnsInteger: '最大轮次必须是整数', goalTurnsNonNegative: '最大轮次不能为负数', goalTurnsTooLarge: '最大轮次不能超过 10000', goalLLMInteger: 'LLM # 必须是整数', goalLLMNonNegative: 'LLM # 不能为负数', goalPythonHelp: 'Python 留空时自动选择：GA 根目录 .venv、venv、uv 缓存解释器、PATH python/python3；填写后按该路径启动并记录到 Goal 状态。', goalStarted: 'Goal 已启动', goalStopped: 'Goal 已停止', goalDeleted: 'Goal 已删除', goalDeleteConfirm: '确定删除 Goal {id}？会删除状态和日志文件；运行中的目标请先停止。', goalDeleteRunning: '运行中的 Goal 不能删除，请先停止。', goalStopConfirm: '确认停止 Goal {id}？将按可用控制级别停止。', goalStopExactConfirm: '确认停止 Admin Goal {id}？将仅终止该 Goal 记录的精确 PID {pid}。', goalStopSoftConfirm: '确认软停止外部 Goal {id}？不会杀进程，只写入状态文件 stopped_by_admin，让 Goal 循环自行退出。', goalOutputTruncated: '仅显示输出尾部，前面内容已截断', goalOutputCapped: '请求字节数超过后端上限，已按上限读取', goalOutputDefault: '未指定读取字节数，已使用默认值', goalOutputBytesInteger: '输出字节数必须是整数', goalOutputBytesNonNegative: '输出字节数不能为负数', goalOutputBytesTooLarge: '输出字节数不能超过 1048576', goalOutputCopied: '输出已复制', goalOutputCleared: '输出已清空', goalOutputLogMissing: '日志文件尚未创建，当前无可读取输出' },
@@ -521,7 +521,28 @@ export default function App() {
 
 
 function PetsPage() {
-  return <section className="pets-page"><HatchPetSettings /></section>
+  const [catalog, setCatalog] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const loadPets = async () => {
+    try { const d = await api('/api/pets'); setCatalog(d); return d }
+    catch (e) { setMsg(`读取形象列表失败：${e.message}`); return null }
+  }
+  useEffect(() => { loadPets() }, [])
+  const switchPet = async (petId) => {
+    setBusy(true); setMsg('正在切换桌宠形象…')
+    try {
+      const d = await api('/api/pets/active', { method:'POST', body: JSON.stringify({ pet_id: petId }) })
+      setCatalog(prev => ({ ...(prev || {}), active_pet_id: d.active_pet_id }))
+      setMsg('已切换当前桌面形象')
+    } catch(e) { setMsg(`切换失败：${e.message}`) } finally { setBusy(false) }
+  }
+  const pets = catalog?.pets || []
+  const active = catalog?.active_pet_id
+  return <section className="pets-page">
+    <Panel title="桌宠形象库" className="pet-manager-card"><div className="pet-manager-head"><div><p className="muted">管理 GA Admin 内置人物/宠物形象。点击“设为当前”会立即切换 Windows 桌面宠物，并把 active pet 写入 pets.local.json。</p>{catalog?.description && <small>{catalog.description}</small>}</div><button onClick={loadPets} disabled={busy}><RefreshCw size={15}/>刷新</button></div>{msg && <p className="muted">{msg}</p>}<div className="pet-grid">{pets.length ? pets.map(p => <article key={p.id} className={`pet-card ${active === p.id ? 'active' : ''}`}><div className="pet-preview"><img src={p.spritesheet || p.manifest} alt={p.name || p.id}/></div><div className="pet-card-body"><div className="pet-title"><b>{p.name || p.id}</b>{active === p.id && <span className="badge ok">当前</span>}</div><p>{p.description || 'GA Admin desktop pet asset'}</p><small>{p.id} · {p.frame_width || 192}×{p.frame_height || 208} · {p.columns || 8}×{p.rows || 9}</small><button disabled={busy || active === p.id} onClick={() => switchPet(p.id)}>{active === p.id ? '已启用' : '设为当前'}</button></div></article>) : <p className="muted">暂无宠物资产。请先生成并写入 web/public/ga-admin-pets/pets.json。</p>}</div></Panel>
+    <HatchPetSettings />
+  </section>
 }
 
 function HatchPetSettings() {
@@ -533,12 +554,12 @@ function HatchPetSettings() {
     catch (e) { setStatus({ error: e.message }); return null }
   }
   useEffect(() => { refresh() }, [])
-  const exportSkill = async () => {
-    setBusy(true); setMsg('正在导出内置 hatch-pet…')
+  const installToolchain = async () => {
+    setBusy(true); setMsg('正在安装 GA Admin 内置 hatch-pet 工具链…')
     try {
       const d = await api('/api/hatch-pet/export', { dangerous:true, method:'POST', body: '{}' })
-      setStatus(d); setMsg(`已导出到 ${d.export_path || d.path || '~/.codex/skills/hatch-pet'}`)
-    } catch(e) { setMsg(`导出失败：${e.message}`) } finally { setBusy(false) }
+      setStatus(d); setMsg(`已安装到 ${d.export_path || d.default_export_dir || d.path || 'GA tools/hatch-pet'}`)
+    } catch(e) { setMsg(`安装失败：${e.message}`) } finally { setBusy(false) }
   }
   const openExportDir = async () => {
     setBusy(true); setMsg('正在打开导出目录…')
@@ -555,10 +576,10 @@ function HatchPetSettings() {
   }
   const fileCount = status?.file_count ?? status?.files ?? 0
   const totalBytes = status?.total_bytes ?? status?.bytes ?? 0
-  const exportPath = status?.export_path || status?.path || '~/.codex/skills/hatch-pet'
+  const exportPath = status?.export_path || status?.default_export_dir || status?.path || 'GA tools/hatch-pet'
   const exported = !!status?.exported
   const mem = status?.memory
-  return <Panel title="桌宠 SOP 安装" className="hatch-pet-card"><div className="hatch-pet-settings"><div><p className="muted">把 ga_admin_pets_sop.md 与 hatch_pet_sop.md 安装进当前 GA 根目录 memory，并同步 global_mem_insight.txt。这样从 GA 启动后，模型会直接知道桌宠制作/验证/嵌入规范。</p><div className="hatch-pet-meta"><span className={mem?.installed ? 'badge ok' : 'badge'}>{mem?.installed ? 'GA 记忆已安装' : 'GA 记忆未安装'}</span><span>{fileCount} skill files</span><span>{totalBytes ? `${Math.round(totalBytes / 1024)} KB skill` : '—'}</span><span className={exported ? 'badge ok' : 'badge'}>{exported ? 'Codex skill 已导出' : 'Codex skill 未导出'}</span></div><code className="hatch-pet-path">{mem?.memory_dir || '请先配置 GA 根目录'}</code><p className="muted">SOP 要点：ga-admin-pets atlas 192×208、8列9行；行序 idle / running-right / running-left / waving / jumping / failed / waiting / running / review。</p><p className="muted">Codex skill 目录：{exportPath}</p>{status?.error && <p className="err-text">{status.error}</p>}{msg && <p className="muted">{msg}</p>}</div><div className="hatch-pet-actions"><button disabled={busy} onClick={installMemory}><Heart size={14}/>安装到 GA 记忆</button><button disabled={busy} onClick={exportSkill}><Download size={14}/>导出 Codex skill</button><button disabled={busy} onClick={openExportDir}><FolderCog size={14}/>打开 skill 目录</button><button disabled={busy} onClick={refresh}><RefreshCw size={14}/>刷新</button></div></div></Panel>
+  return <Panel title="GA Admin 桌宠工具链" className="hatch-pet-card"><div className="hatch-pet-settings"><div><p className="muted">把 ga_admin_pets_sop.md / hatch_pet_sop.md 安装进当前 GA 根目录 memory，并把内置 hatch-pet 工具链导出到 GA 根目录 tools/hatch-pet。运行时不依赖 ~/.codex/skills。</p><div className="hatch-pet-meta"><span className={mem?.installed ? 'badge ok' : 'badge'}>{mem?.installed ? 'GA 记忆已安装' : 'GA 记忆未安装'}</span><span>{fileCount} tool files</span><span>{totalBytes ? `${Math.round(totalBytes / 1024)} KB tools` : '—'}</span><span className={exported ? 'badge ok' : 'badge'}>{exported ? 'GA 工具链已安装' : 'GA 工具链未安装'}</span></div><code className="hatch-pet-path">{mem?.memory_dir || '请先配置 GA 根目录'}</code><p className="muted">SOP 要点：ga-admin-pets atlas 192×208、8列9行；行序 idle / running-right / running-left / waving / jumping / failed / waiting / running / review。</p><p className="muted">GA 工具链目录：{exportPath}</p>{status?.error && <p className="err-text">{status.error}</p>}{msg && <p className="muted">{msg}</p>}</div><div className="hatch-pet-actions"><button disabled={busy} onClick={installMemory}><Heart size={14}/>安装到 GA 记忆</button><button disabled={busy} onClick={installToolchain}><Download size={14}/>安装工具链</button><button disabled={busy} onClick={openExportDir}><FolderCog size={14}/>打开工具目录</button><button disabled={busy} onClick={refresh}><RefreshCw size={14}/>刷新</button></div></div></Panel>
 }
 
 function icon(n) { const m = { overview:<Activity size={16}/>, chat:<MessageSquare size={16}/>, control:<ShieldAlert size={16}/>, files:<FileCode2 size={16}/>, tasks:<Terminal size={16}/>, bbs:<Users size={16}/>, pets:<Heart size={16}/>, memory:<Brain size={16}/>, channels:<Globe2 size={16}/>, autonomous:<Bot size={16}/>, schedule:<CalendarClock size={16}/>, goals:<Target size={16}/>, models:<SlidersHorizontal size={16}/>, settings:<FolderCog size={16}/>, logs:<FolderCog size={16}/> }; return m[n] }
