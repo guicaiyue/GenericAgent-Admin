@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
@@ -571,6 +571,16 @@ export default function ChatApp() {
   const runSeqRef = useRef(0)
   const queuedRef = useRef([])
   const chatScope = useRef(null)
+  // Auto-grow composer textarea to fit content (clamped), reset to single row when cleared.
+  const COMPOSER_MAX_H = 160
+  useLayoutEffect(() => {
+    const el = promptRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const next = Math.min(el.scrollHeight, COMPOSER_MAX_H)
+    el.style.height = next + 'px'
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden'
+  }, [prompt])
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
 
   const applyStreamEvent = (ev, pendingId, clientUserID = '') => {

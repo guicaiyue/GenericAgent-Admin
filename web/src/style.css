@@ -3168,3 +3168,16 @@ html[data-theme="dark"] .oa-error .oa-bubble { background: rgba(244, 138, 144, .
 /* links / info (blue family) */
 html[data-theme="dark"] .oa-md a,
 html[data-theme="dark"] .goal-tabs button.active { color: var(--ink-link) !important; }
+
+
+/* /chat composer: brand-green focus affordance (auto-grow handled in ChatApp.jsx) */
+.oa-composer:focus-within {
+  border-color: rgba(16,163,127,.55) !important;
+  box-shadow: 0 0 0 3px rgba(16,163,127,.12), 0 18px 48px rgba(0,0,0,.10) !important;
+}
+.oa-composer:focus-within .oa-send:not(:disabled) {
+  background: #10a37f !important;
+}
+.oa-composer:focus-within .oa-send:not(:disabled):hover {
+  background: #0e906f !important;
+}
