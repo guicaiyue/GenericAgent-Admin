@@ -71,6 +71,7 @@ type ApplyResult struct {
 
 type UpdateStatus struct {
 	ID        string       `json:"id,omitempty"`
+	PID       int          `json:"pid,omitempty"`
 	Running   bool         `json:"running"`
 	Stage     string       `json:"stage"`
 	Progress  int          `json:"progress"`
@@ -86,6 +87,7 @@ type UpdateStatus struct {
 var (
 	updateMu           sync.Mutex
 	statusPathOverride string
+	exitProcess        = os.Exit
 )
 
 func statusPath() string {
@@ -122,6 +124,28 @@ func readStatusLocked() UpdateStatus {
 			UpdatedAt: now,
 			EndedAt:   now,
 		}
+	}
+	return normalizeStatusAfterRestart(st)
+}
+
+func normalizeStatusAfterRestart(st UpdateStatus) UpdateStatus {
+	if !st.Running {
+		return st
+	}
+	switch st.Stage {
+	case "restarting", "applying":
+		if st.PID != 0 && st.PID == os.Getpid() {
+			return st
+		}
+		now := time.Now()
+		st.Running = false
+		st.Stage = "done"
+		st.Progress = 100
+		if st.Message == "" {
+			st.Message = "升级已应用，服务已重启"
+		}
+		st.UpdatedAt = now
+		st.EndedAt = now
 	}
 	return st
 }
@@ -181,7 +205,7 @@ func StartApplyLatest() (UpdateStatus, error) {
 		return cur, nil
 	}
 	now := time.Now()
-	st := UpdateStatus{ID: fmt.Sprintf("update-%d", now.Unix()), Running: true, Stage: "queued", Progress: 1, Message: "升级任务已启动", StartedAt: now, UpdatedAt: now}
+	st := UpdateStatus{ID: fmt.Sprintf("update-%d", now.Unix()), PID: os.Getpid(), Running: true, Stage: "queued", Progress: 1, Message: "升级任务已启动", StartedAt: now, UpdatedAt: now}
 	if err := writeStatus(st); err != nil {
 		st.Running = false
 		st.Stage = "error"
@@ -368,7 +392,7 @@ func applyLatest(ctx context.Context, progress func(stage, msg string, pct int, 
 	if err := cmd.Start(); err != nil {
 		return ApplyResult{}, err
 	}
-	go func() { time.Sleep(500 * time.Millisecond); os.Exit(0) }()
+	go func() { time.Sleep(500 * time.Millisecond); exitProcess(0) }()
 	return ApplyResult{OK: true, Message: "update downloaded; restarting", Script: script}, nil
 }
 

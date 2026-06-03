@@ -525,13 +525,19 @@ const AssistantContent = memo(function AssistantContent({ content, pending, onAs
   </div>
 })
 
+// 用户消息正文里会被自动追加附件清单（前端乐观态的“[图片附件]”或后端保存后的“[附件已保存]\n[FILE:...]”）。
+// 这些附件已经由 oa-message-images 单独渲染，若再经 InlineRichText 渲染 [FILE:] 会导致图片重复显示，故在展示前剥离该尾块。
+const stripUserAttachmentBlock = (content = '') =>
+  String(content || '').replace(/\n*\[(?:图片附件|附件已保存)\][\s\S]*$/, '').trimEnd()
+
 const ChatMessage = memo(function ChatMessage({ message: m, pending, onAskReply }) {
+  const userText = m.role === 'user' ? stripUserAttachmentBlock(m.content) : m.content
   return <article className={`oa-message ${m.role} ${m.error?'error':''}`}>
     <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
     <div className="oa-bubble">
-      <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
+      <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.role === 'user' ? userText : m.content} compact />}</div>
       {Array.isArray(m.files) && m.files.some(isImageFile) && <div className="oa-message-images">{m.files.filter(isImageFile).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
-      {m.role === 'assistant' ? <AssistantContent content={m.content} pending={pending && !m.content} onAskReply={onAskReply} /> : <MarkdownBlock text={m.content} />}
+      {m.role === 'assistant' ? <AssistantContent content={m.content} pending={pending && !m.content} onAskReply={onAskReply} /> : (userText && <MarkdownBlock text={userText} />)}
     </div>
   </article>
 })

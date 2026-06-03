@@ -538,3 +538,43 @@ func TestWriteStatusCreatesParentAndCleansTempFiles(t *testing.T) {
 		t.Fatalf("leftover temp files: %v", matches)
 	}
 }
+
+func TestCurrentUpdateStatusNormalizesRestartingAfterRelaunch(t *testing.T) {
+	oldStatus := statusPathOverride
+	statusPathOverride = filepath.Join(t.TempDir(), "ga-admin-update-status.json")
+	defer func() { statusPathOverride = oldStatus }()
+
+	started := time.Now().Add(-time.Minute).UTC()
+	st := UpdateStatus{ID: "restart-test", PID: os.Getpid() + 1, Running: true, Stage: "restarting", Progress: 95, Message: "升级包已就绪，正在重启服务", StartedAt: started, UpdatedAt: started}
+	b, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statusPathOverride, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := CurrentUpdateStatus()
+	if got.Running || got.Stage != "done" || got.Progress != 100 {
+		t.Fatalf("normalized status = %+v", got)
+	}
+	if got.EndedAt.IsZero() || got.UpdatedAt.IsZero() {
+		t.Fatalf("normalized timestamps missing: %+v", got)
+	}
+}
+
+func TestNormalizeStatusAfterRestartLeavesActiveDownloadRunning(t *testing.T) {
+	st := UpdateStatus{ID: "download-test", Running: true, Stage: "downloading", Progress: 35, Message: "downloading"}
+	got := normalizeStatusAfterRestart(st)
+	if !got.Running || got.Stage != st.Stage || got.Progress != st.Progress || got.Message != st.Message {
+		t.Fatalf("status should remain active download, got %+v", got)
+	}
+}
+
+func TestNormalizeStatusAfterRestartLeavesCurrentProcessRestarting(t *testing.T) {
+	st := UpdateStatus{ID: "same-process-test", PID: os.Getpid(), Running: true, Stage: "restarting", Progress: 95, Message: "restarting"}
+	got := normalizeStatusAfterRestart(st)
+	if !got.Running || got.Stage != st.Stage || got.Progress != st.Progress || got.Message != st.Message {
+		t.Fatalf("current process restarting status should remain running, got %+v", got)
+	}
+}
