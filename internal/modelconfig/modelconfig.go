@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -163,11 +164,15 @@ func SourceStatus(gaRoot string) map[string]interface{} {
 func exists(p string) bool { st, err := os.Stat(p); return err == nil && !st.IsDir() }
 
 func ImportMyKey(gaRoot string, reveal bool) (Draft, error) {
+	return ImportMyKeyWithPython(gaRoot, "", reveal)
+}
+
+func ImportMyKeyWithPython(gaRoot, configuredPython string, reveal bool) (Draft, error) {
 	mykey := filepath.Join(gaRoot, "mykey.py")
 	if !exists(mykey) {
 		return Draft{UpdatedAt: time.Now().Format(time.RFC3339), Profiles: Defaults()}, nil
 	}
-	py := pythonExe(gaRoot)
+	py := pythonExe(gaRoot, configuredPython)
 	script := `import ast, json, sys
 path=sys.argv[1]
 reveal=sys.argv[2]=='1'
@@ -228,14 +233,25 @@ print(json.dumps({'updated_at':'','profiles':profiles}, ensure_ascii=False))`
 	return d, nil
 }
 
-func pythonExe(gaRoot string) string {
-	candidates := []string{filepath.Join(gaRoot, ".venv", "Scripts", "python.exe"), filepath.Join(gaRoot, "venv", "Scripts", "python.exe"), "python"}
+func pythonExe(gaRoot, configuredPython string) string {
+	if py := strings.TrimSpace(configuredPython); py != "" {
+		return py
+	}
+	candidates := []string{
+		filepath.Join(gaRoot, ".venv", "Scripts", "python.exe"),
+		filepath.Join(gaRoot, "venv", "Scripts", "python.exe"),
+		filepath.Join(gaRoot, ".venv", "bin", "python"),
+		filepath.Join(gaRoot, "venv", "bin", "python"),
+	}
 	for _, c := range candidates {
-		if c == "python" || exists(c) {
+		if exists(c) {
 			return c
 		}
 	}
-	return "python"
+	if runtime.GOOS == "windows" {
+		return "python"
+	}
+	return "python3"
 }
 func boolArg(v bool) string {
 	if v {

@@ -75,7 +75,7 @@ func (s *Server) modelsImportMyKey(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	d, err := modelconfig.ImportMyKey(s.CfgStore.Cfg.GARoot, p.Reveal)
+	d, err := modelconfig.ImportMyKeyWithPython(s.CfgStore.Cfg.GARoot, s.CfgStore.Cfg.PythonPath, p.Reveal)
 	if err != nil {
 		bad(w, 400, err.Error())
 		return

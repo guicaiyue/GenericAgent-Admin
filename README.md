@@ -65,7 +65,7 @@ GenericAgent-Admin-Go/
 }
 ```
 
-`python_path` 留空时使用系统默认 Python；如果 GA 有固定虚拟环境，建议填写该解释器路径。
+`python_path` 留空时会自动查找 GA 根目录下的虚拟环境解释器（Windows: `.venv/Scripts/python.exe`、`venv/Scripts/python.exe`；Linux/macOS: `.venv/bin/python`、`venv/bin/python`）。未找到虚拟环境时，Windows 回退到 `python`，Linux/macOS 回退到 `python3`；如果 GA 有固定虚拟环境，建议填写该解释器路径。
 
 ### 2. 安装前端依赖
 

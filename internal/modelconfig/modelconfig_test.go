@@ -154,3 +154,35 @@ func TestRenderRejectsUnmarshalableExtraValue(t *testing.T) {
 		t.Fatalf("Render() error = %v, want render bad", err)
 	}
 }
+
+func TestPythonExePrefersConfiguredPath(t *testing.T) {
+	configured := filepath.Join(t.TempDir(), "custom-python")
+	if got := pythonExe(t.TempDir(), configured); got != configured {
+		t.Fatalf("pythonExe configured = %q, want %q", got, configured)
+	}
+}
+
+func TestPythonExeFindsPosixVirtualEnvBeforeFallback(t *testing.T) {
+	root := t.TempDir()
+	posixPython := filepath.Join(root, ".venv", "bin", "python")
+	if err := os.MkdirAll(filepath.Dir(posixPython), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(posixPython, []byte(""), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if got := pythonExe(root, ""); got != posixPython {
+		t.Fatalf("pythonExe posix venv = %q, want %q", got, posixPython)
+	}
+}
+
+func TestPythonExeFallbackPrefersPython3OffWindows(t *testing.T) {
+	got := pythonExe(t.TempDir(), "")
+	want := "python3"
+	if runtime.GOOS == "windows" {
+		want = "python"
+	}
+	if got != want {
+		t.Fatalf("pythonExe fallback = %q, want %q", got, want)
+	}
+}
