@@ -27,16 +27,23 @@ const maxJSONBodyBytes = 1 << 20
 var errRequestBodyTooLarge = errors.New("request body too large")
 
 func decode(r *http.Request, v interface{}) (err error) {
+	return decodeLimited(r, v, maxJSONBodyBytes)
+}
+
+// decodeLimited decodes a JSON request body enforcing a maximum size in bytes.
+// It allows endpoints that accept large payloads (e.g. chat image uploads) to
+// raise the limit above the default maxJSONBodyBytes.
+func decodeLimited(r *http.Request, v interface{}, limit int64) (err error) {
 	defer func() {
 		if closeErr := r.Body.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}()
-	data, err := io.ReadAll(io.LimitReader(r.Body, maxJSONBodyBytes+1))
+	data, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return err
 	}
-	if len(data) > maxJSONBodyBytes {
+	if int64(len(data)) > limit {
 		return errRequestBodyTooLarge
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))

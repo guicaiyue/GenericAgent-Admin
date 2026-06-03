@@ -81,6 +81,14 @@ function CopyButton({ text, compact = false }) {
   </button>
 }
 
+function isImageFile(f) {
+  if (!f) return false
+  const mime = String(f.type || f.mime || '')
+  if (mime.startsWith('image/')) return true
+  const ref = String(f.name || f.url || f.path || f.dataURL || '').split(/[?#]/)[0]
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(ref)
+}
+
 function FileAttachment({ path }) {
   const clean = String(path || '').trim()
   const name = clean.split(/[\\/]/).filter(Boolean).pop() || clean || '文件'
@@ -522,7 +530,7 @@ const ChatMessage = memo(function ChatMessage({ message: m, pending, onAskReply 
     <div className="oa-avatar">{m.role === 'user' ? '你' : 'GA'}</div>
     <div className="oa-bubble">
       <div className="oa-meta"><b>{m.role === 'user' ? 'You' : 'GenericAgent'}</b>{m.created_at && <span>{fmtTime(m.created_at)}</span>}{m.content && <CopyButton text={m.content} compact />}</div>
-      {Array.isArray(m.files) && m.files.some(f => String(f.type || '').startsWith('image/')) && <div className="oa-message-images">{m.files.filter(f => String(f.type || '').startsWith('image/')).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
+      {Array.isArray(m.files) && m.files.some(isImageFile) && <div className="oa-message-images">{m.files.filter(isImageFile).map((f, i) => <img key={f.name || i} src={f.dataURL || f.url} alt={f.name || 'image'} />)}</div>}
       {m.role === 'assistant' ? <AssistantContent content={m.content} pending={pending && !m.content} onAskReply={onAskReply} /> : <MarkdownBlock text={m.content} />}
     </div>
   </article>

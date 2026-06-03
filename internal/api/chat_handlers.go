@@ -205,7 +205,7 @@ func (s *Server) chatPost(w http.ResponseWriter, r *http.Request, sid string) {
 		Settings     *chatSettings `json:"settings"`
 		ClientUserID string        `json:"client_user_id"`
 	}
-	if err := decode(r, &req); err != nil {
+	if err := decodeLimited(r, &req, maxChatPostBodyBytes); err != nil {
 		bad(w, 400, "bad request")
 		return
 	}

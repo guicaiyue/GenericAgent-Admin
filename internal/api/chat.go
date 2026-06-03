@@ -46,6 +46,11 @@ const (
 	maxChatUploadFiles        = 8
 	maxChatUploadBytesPerFile = 20 << 20
 	maxChatUploadBytesTotal   = 40 << 20
+	// maxChatPostBodyBytes must accommodate base64-encoded uploads (which inflate
+	// raw bytes by ~4/3) plus prompt text and per-file metadata, so it is set well
+	// above maxChatUploadBytesTotal. The decoded raw size is still capped by
+	// saveChatUploads, so this only governs the transport payload size.
+	maxChatPostBodyBytes = 64 << 20
 )
 
 type chatUpload struct{ Name, Type, DataURL string }

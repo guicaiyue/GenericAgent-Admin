@@ -55,6 +55,28 @@ func TestDecodeRejectsOversizedJSONBody(t *testing.T) {
 	}
 }
 
+func TestDecodeLimitedAllowsBodiesAboveDefaultCap(t *testing.T) {
+	// A payload larger than the default cap (e.g. a base64 image upload) must be
+	// accepted when the endpoint raises the limit, otherwise sending images fails.
+	payload := strings.Repeat("x", maxJSONBodyBytes*2)
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"payload":"`+payload+`"}`))
+	var got map[string]string
+	if err := decodeLimited(req, &got, maxChatPostBodyBytes); err != nil {
+		t.Fatalf("decodeLimited large body err=%v want nil", err)
+	}
+	if got["payload"] != payload {
+		t.Fatalf("decodeLimited did not preserve payload (len=%d)", len(got["payload"]))
+	}
+}
+
+func TestDecodeLimitedStillRejectsBeyondLimit(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"payload":"`+strings.Repeat("x", maxJSONBodyBytes)+`"}`))
+	var got map[string]string
+	if err := decodeLimited(req, &got, maxJSONBodyBytes); !errors.Is(err, errRequestBodyTooLarge) {
+		t.Fatalf("decodeLimited oversized error=%v want %v", err, errRequestBodyTooLarge)
+	}
+}
+
 func TestDecodeKeepsSingleJSONValueValidation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ok":true} {"extra":true}`))
 	var got map[string]bool
