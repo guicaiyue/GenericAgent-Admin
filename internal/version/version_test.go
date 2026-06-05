@@ -98,23 +98,50 @@ func TestVerifySHA256(t *testing.T) {
 }
 
 func TestWindowsUpdateScriptQuotesVariablesSafely(t *testing.T) {
-	script := windowsUpdateScript(`C:\Program Files\GA Admin\ga-admin.exe`, `C:\Temp\new ga-admin.exe`, `C:\Program Files\GA Admin\ga-admin.exe.bak`)
+	script := windowsUpdateScript(
+		`C:\Program Files\GA Admin\ga-admin.exe`,
+		`C:\Temp\new ga-admin.exe`,
+		`C:\Program Files\GA Admin\ga-admin.exe.bak`,
+		`C:\Program Files\GA Admin\cmd\chat_worker.py`,
+		`C:\Temp\cmd\chat_worker.py`,
+		`C:\Program Files\GA Admin\cmd\chat_worker.py.bak`,
+	)
 	want := []string{
 		`set "OLD=C:\Program Files\GA Admin\ga-admin.exe"`,
 		`set "NEW=C:\Temp\new ga-admin.exe"`,
 		`set "BAK=C:\Program Files\GA Admin\ga-admin.exe.bak"`,
+		`set "WORKER=C:\Program Files\GA Admin\cmd\chat_worker.py"`,
+		`set "NEW_WORKER=C:\Temp\cmd\chat_worker.py"`,
+		`set "WORKER_BAK=C:\Program Files\GA Admin\cmd\chat_worker.py.bak"`,
 		`move /Y "%OLD%" "%BAK%"`,
 		`move /Y "%NEW%" "%OLD%"`,
+		`move /Y "%NEW_WORKER%" "%WORKER%"`,
 	}
 	for _, w := range want {
 		if !strings.Contains(script, w) {
 			t.Fatalf("script missing %q in:\n%s", w, script)
 		}
 	}
-	bad := []string{`set OLD=`, `set NEW=`, `set BAK=`, `""C:\`}
+	bad := []string{`set OLD=`, `set NEW=`, `set BAK=`, `set WORKER=`, `""C:\`, `%~dpWORKER%`}
 	for _, b := range bad {
 		if strings.Contains(script, b) {
 			t.Fatalf("script contains unsafe quoting %q in:\n%s", b, script)
+		}
+	}
+}
+
+func TestWindowsUpdateScriptRestoresExeWhenWorkerMoveFails(t *testing.T) {
+	script := windowsUpdateScript("old.exe", "new.exe", "old.exe.bak", "cmd/chat_worker.py", "tmp/chat_worker.py", "cmd/chat_worker.py.bak")
+	want := []string{
+		`for %%D in ("%WORKER%") do if not exist "%%~dpD" mkdir "%%~dpD"`,
+		`if exist "%WORKER%" move /Y "%WORKER%" "%WORKER_BAK%"`,
+		`if exist "%WORKER_BAK%" move /Y "%WORKER_BAK%" "%WORKER%"`,
+		`move /Y "%OLD%" "%NEW%"`,
+		`move /Y "%BAK%" "%OLD%"`,
+	}
+	for _, sub := range want {
+		if !strings.Contains(script, sub) {
+			t.Fatalf("script missing rollback step %q in:\n%s", sub, script)
 		}
 	}
 }
@@ -504,6 +531,11 @@ func makeUpdateZip(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	_, _ = w.Write([]byte("new exe"))
+	w, err = zw.Create("cmd/chat_worker.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("new worker"))
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}

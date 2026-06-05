@@ -379,9 +379,15 @@ func applyLatest(ctx context.Context, progress func(stage, msg string, pct int, 
 	if err != nil {
 		return ApplyResult{}, err
 	}
+	newWorker, workerErr := findFile(dir, "chat_worker.py")
+	if workerErr != nil {
+		return ApplyResult{}, fmt.Errorf("chat_worker.py missing from package: %w", workerErr)
+	}
+	worker := filepath.Join(filepath.Dir(exe), "cmd", "chat_worker.py")
 	script := filepath.Join(work, "apply-update.cmd")
 	backup := exe + ".bak"
-	content := windowsUpdateScript(exe, newExe, backup)
+	workerBackup := worker + ".bak"
+	content := windowsUpdateScript(exe, newExe, backup, worker, newWorker, workerBackup)
 	if err := writeFileAtomic(script, []byte(content), 0600); err != nil {
 		return ApplyResult{}, err
 	}
@@ -396,12 +402,15 @@ func applyLatest(ctx context.Context, progress func(stage, msg string, pct int, 
 	return ApplyResult{OK: true, Message: "update downloaded; restarting", Script: script}, nil
 }
 
-func windowsUpdateScript(oldExe, newExe, backup string) string {
+func windowsUpdateScript(oldExe, newExe, backup, worker, newWorker, workerBackup string) string {
 	return fmt.Sprintf(`@echo off
 setlocal
 set "OLD=%s"
 set "NEW=%s"
 set "BAK=%s"
+set "WORKER=%s"
+set "NEW_WORKER=%s"
+set "WORKER_BAK=%s"
 for /L %%%%i in (1,1,30) do (
   move /Y "%%OLD%%" "%%BAK%%" >nul 2>nul && goto replaced
   timeout /t 1 /nobreak >nul
@@ -411,8 +420,19 @@ exit /b 1
 :replaced
 move /Y "%%NEW%%" "%%OLD%%" >nul
 if errorlevel 1 (move /Y "%%BAK%%" "%%OLD%%" >nul 2>nul & exit /b 1)
+if not "%%NEW_WORKER%%"=="" (
+  for %%%%D in ("%%WORKER%%") do if not exist "%%%%~dpD" mkdir "%%%%~dpD"
+  if exist "%%WORKER%%" move /Y "%%WORKER%%" "%%WORKER_BAK%%" >nul 2>nul
+  move /Y "%%NEW_WORKER%%" "%%WORKER%%" >nul
+  if errorlevel 1 (
+    if exist "%%WORKER_BAK%%" move /Y "%%WORKER_BAK%%" "%%WORKER%%" >nul 2>nul
+    move /Y "%%OLD%%" "%%NEW%%" >nul 2>nul
+    move /Y "%%BAK%%" "%%OLD%%" >nul 2>nul
+    exit /b 1
+  )
+)
 start "" "%%OLD%%"
-`, oldExe, newExe, backup)
+`, oldExe, newExe, backup, worker, newWorker, workerBackup)
 }
 
 func fetchLatest(ctx context.Context) (rel *Release, err error) {
