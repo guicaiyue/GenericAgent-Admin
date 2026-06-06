@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -207,6 +208,82 @@ func (m *Manager) Start(name string) (ServiceInfo, error) {
 		time.Sleep(500 * time.Millisecond)
 	}
 	cmd := exec.Command(s.Command[0], s.Command[1:]...)
+	cmd.Dir = m.GARoot
+	hideChildWindow(cmd)
+	cmd.Env = m.serviceEnv()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return s, err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return s, err
+	}
+	if err := cmd.Start(); err != nil {
+		return s, err
+	}
+	m.mu.Lock()
+	m.procs[name] = &runningProc{cmd: cmd}
+	m.mu.Unlock()
+	go m.readPipe(name, stdout)
+	go m.readPipe(name, stderr)
+	go func() {
+		err := cmd.Wait()
+		code := 0
+		if err != nil {
+			if ee, ok := err.(*exec.ExitError); ok {
+				code = ee.ExitCode()
+			} else {
+				code = -1
+			}
+		}
+		m.mu.Lock()
+		if p := m.procs[name]; p != nil {
+			p.ret = &code
+		}
+		m.appendLocked(name, fmt.Sprintf("[process exited rc=%d]", code))
+		m.mu.Unlock()
+	}()
+	return m.withState(s), nil
+}
+
+// StartWithLLM starts a service with optional llm_no override injected into the command args.
+func (m *Manager) StartWithLLM(name string, llmNo *int) (ServiceInfo, error) {
+	s, ok := m.Find(name)
+	if !ok {
+		return s, errors.New("service not found")
+	}
+	m.mu.Lock()
+	if p, ok := m.procs[name]; ok && p.cmd.Process != nil && p.ret == nil {
+		pid := p.cmd.Process.Pid
+		if processAlive(pid) {
+			m.mu.Unlock()
+			return m.withState(s), nil
+		}
+		code := -1
+		p.ret = &code
+		m.appendLocked(name, fmt.Sprintf("[process exited: pid %d is no longer alive]", pid))
+	}
+	m.buffers[name] = []string{fmt.Sprintf("$ %s", strings.Join(s.Command, " "))}
+	m.mu.Unlock()
+	if killed, err := m.stopConflictingService(s); err != nil {
+		return s, err
+	} else if len(killed) > 0 {
+		m.mu.Lock()
+		for _, pid := range killed {
+			m.appendLocked(name, fmt.Sprintf("[force restart] stopped existing instance pid=%d", pid))
+		}
+		m.mu.Unlock()
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	args := make([]string, len(s.Command))
+	copy(args, s.Command)
+	if llmNo != nil && *llmNo >= 0 {
+		args = append(args, "--llm_no", strconv.Itoa(*llmNo))
+	}
+
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = m.GARoot
 	hideChildWindow(cmd)
 	cmd.Env = m.serviceEnv()

@@ -5,3 +5,4 @@ model_profiles.json
 web/node_modules/
 .gitnexus
 ga-admin
+.claude/

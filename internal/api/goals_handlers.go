@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -152,4 +153,25 @@ func (s *Server) goalsOutput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, result)
+}
+
+// autonomousStart handles POST /api/autonomous/start
+func (s *Server) autonomousStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		LLMNo *int `json:"llm_no"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	svc, err := s.Svc.StartWithLLM("reflect/autonomous.py", req.LLMNo)
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, svc)
 }
