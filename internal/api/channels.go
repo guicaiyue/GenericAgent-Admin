@@ -1,15 +1,19 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type channelField struct {
@@ -34,6 +38,32 @@ type channelsResponse struct {
 	Exists   bool             `json:"exists"`
 	Profiles []channelProfile `json:"profiles"`
 }
+
+type channelTestRequest struct {
+	ProfileID string           `json:"profile_id"`
+	Fields    []channelField   `json:"fields"`
+	Profiles  []channelProfile `json:"profiles,omitempty"`
+}
+
+type channelTestResponse struct {
+	ProfileID string `json:"profile_id"`
+	OK        bool   `json:"ok"`
+	Message   string `json:"message"`
+}
+
+type channelTestEndpointSet struct {
+	Feishu   string
+	WeCom    string
+	DingTalk string
+}
+
+var channelTestEndpoints = channelTestEndpointSet{
+	Feishu:   "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+	WeCom:    "https://qyapi.weixin.qq.com/cgi-bin/gettoken",
+	DingTalk: "https://api.dingtalk.com/v1.0/oauth2/accessToken",
+}
+
+var channelTestHTTPClient = &http.Client{Timeout: 12 * time.Second}
 
 var channelDefinitions = []channelProfile{
 	{ID: "feishu", Name: "飞书 / Lark", Description: "机器人应用凭据、用户白名单与公开访问开关。", Fields: []channelField{
@@ -78,6 +108,214 @@ func (s *Server) channels(w http.ResponseWriter, r *http.Request) {
 	default:
 		bad(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (s *Server) channelTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		bad(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req channelTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		bad(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	profileID := strings.TrimSpace(req.ProfileID)
+	if profileID == "" {
+		bad(w, http.StatusBadRequest, "profile_id is required")
+		return
+	}
+	fields := req.Fields
+	if len(fields) == 0 {
+		for _, p := range req.Profiles {
+			if p.ID == profileID {
+				fields = p.Fields
+				break
+			}
+		}
+	}
+	values, err := s.channelTestValues(profileID, fields)
+	if err != nil {
+		bad(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok, msg := testChannelCredentials(profileID, values)
+	writeJSON(w, channelTestResponse{ProfileID: profileID, OK: ok, Message: msg})
+}
+
+func (s *Server) channelTestValues(profileID string, fields []channelField) (map[string]string, error) {
+	defs := map[string]channelField{}
+	known := false
+	for _, p := range channelDefinitions {
+		if p.ID != profileID {
+			continue
+		}
+		known = true
+		for _, f := range p.Fields {
+			defs[f.Name] = f
+		}
+	}
+	if !known {
+		return nil, fmt.Errorf("unknown channel profile: %s", profileID)
+	}
+	existing := map[string]string{}
+	if strings.TrimSpace(s.CfgStore.Cfg.GARoot) != "" {
+		if b, err := os.ReadFile(s.channelConfigPath()); err == nil {
+			existing = parseChannelAssignments(string(b))
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	incoming := map[string]channelField{}
+	for _, f := range fields {
+		incoming[f.Name] = f
+	}
+	values := map[string]string{}
+	for name, def := range defs {
+		f, ok := incoming[name]
+		if !ok {
+			f = def
+		}
+		if def.Secret && strings.TrimSpace(f.Value) == "" {
+			values[name] = existing[name]
+		} else {
+			values[name] = encodeChannelValue(f.Value, def.Type)
+		}
+	}
+	return values, nil
+}
+
+func testChannelCredentials(profileID string, values map[string]string) (bool, string) {
+	switch profileID {
+	case "feishu":
+		return testFeishuCredentials(values["fs_app_id"], values["fs_app_secret"])
+	case "wecom":
+		return testWeComCredentials(values["wecom_bot_id"], values["wecom_secret"])
+	case "dingtalk":
+		return testDingTalkCredentials(values["dingtalk_client_id"], values["dingtalk_client_secret"])
+	default:
+		return false, "unknown channel profile"
+	}
+}
+
+func testFeishuCredentials(appID, appSecret string) (bool, string) {
+	appID, appSecret = strings.TrimSpace(appID), strings.TrimSpace(appSecret)
+	if appID == "" || appSecret == "" {
+		return false, "App ID 和 App Secret 不能为空"
+	}
+	body, _ := json.Marshal(map[string]string{"app_id": appID, "app_secret": appSecret})
+	status, payload, err := channelTestRequestJSON(http.MethodPost, channelTestEndpoints.Feishu, body)
+	if err != nil {
+		return false, err.Error()
+	}
+	if status < 200 || status >= 300 {
+		return false, fmt.Sprintf("飞书接口返回 HTTP %d", status)
+	}
+	code := intFromJSON(payload, "code", "StatusCode", "errcode")
+	if code == 0 {
+		return true, "飞书凭据验证通过"
+	}
+	return false, firstStringFromJSON(payload, "msg", "message", "StatusMessage", "errmsg")
+}
+
+func testWeComCredentials(botID, secret string) (bool, string) {
+	botID, secret = strings.TrimSpace(botID), strings.TrimSpace(secret)
+	if botID == "" || secret == "" {
+		return false, "Bot ID / Agent ID 和 Secret 不能为空"
+	}
+	sep := "?"
+	if strings.Contains(channelTestEndpoints.WeCom, "?") {
+		sep = "&"
+	}
+	url := fmt.Sprintf("%s%scorpid=%s&corpsecret=%s", channelTestEndpoints.WeCom, sep, urlQueryEscape(botID), urlQueryEscape(secret))
+	status, payload, err := channelTestRequestJSON(http.MethodGet, url, nil)
+	if err != nil {
+		return false, err.Error()
+	}
+	if status < 200 || status >= 300 {
+		return false, fmt.Sprintf("企业微信接口返回 HTTP %d", status)
+	}
+	if intFromJSON(payload, "errcode", "code") == 0 {
+		return true, "企业微信凭据验证通过"
+	}
+	return false, firstStringFromJSON(payload, "errmsg", "msg", "message")
+}
+
+func testDingTalkCredentials(clientID, clientSecret string) (bool, string) {
+	clientID, clientSecret = strings.TrimSpace(clientID), strings.TrimSpace(clientSecret)
+	if clientID == "" || clientSecret == "" {
+		return false, "Client ID 和 Client Secret 不能为空"
+	}
+	body, _ := json.Marshal(map[string]string{"appKey": clientID, "appSecret": clientSecret})
+	status, payload, err := channelTestRequestJSON(http.MethodPost, channelTestEndpoints.DingTalk, body)
+	if err != nil {
+		return false, err.Error()
+	}
+	if status < 200 || status >= 300 {
+		return false, fmt.Sprintf("钉钉接口返回 HTTP %d", status)
+	}
+	if intFromJSON(payload, "errcode", "code") == 0 {
+		return true, "钉钉凭据验证通过"
+	}
+	return false, firstStringFromJSON(payload, "errmsg", "msg", "message")
+}
+
+func channelTestRequestJSON(method, endpoint string, body []byte) (int, map[string]interface{}, error) {
+	req, err := http.NewRequest(method, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := channelTestHTTPClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+	payload := map[string]interface{}{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &payload)
+	}
+	return resp.StatusCode, payload, nil
+}
+
+func firstStringFromJSON(payload map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := payload[key]; ok {
+			s := strings.TrimSpace(fmt.Sprint(v))
+			if s != "" {
+				return s
+			}
+		}
+	}
+	return "凭据验证失败"
+}
+
+func intFromJSON(payload map[string]interface{}, keys ...string) int {
+	for _, key := range keys {
+		if v, ok := payload[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				return int(n)
+			case int:
+				return n
+			case string:
+				if i, err := strconv.Atoi(strings.TrimSpace(n)); err == nil {
+					return i
+				}
+			}
+		}
+	}
+	return -1
+}
+
+func urlQueryEscape(s string) string {
+	return url.QueryEscape(s)
 }
 
 func (s *Server) channelConfigPath() string {

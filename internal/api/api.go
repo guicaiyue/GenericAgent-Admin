@@ -125,6 +125,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/models/preview", s.modelsPreview)
 	mux.HandleFunc("/api/models/import-mykey", s.modelsImportMyKey)
 	mux.HandleFunc("/api/models/export", s.requireDangerousConfirm(s.modelsExport))
+	mux.HandleFunc("/api/channels/test", s.channelTest)
 	mux.HandleFunc("/api/channels", s.channels)
 	mux.HandleFunc("/api/chat/sessions", s.chatSessions)
 	mux.HandleFunc("/api/chat/", s.chatHandler)

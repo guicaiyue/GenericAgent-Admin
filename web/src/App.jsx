@@ -528,6 +528,7 @@ export default function App() {
 function ChannelsPage({ frontendSvcs, t, onStart, onStop, onLogs, onAutostart }) {
   const [config, setConfig] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [testing, setTesting] = useState('')
   const [msg, setMsg] = useState('')
   const load = async () => {
     try {
@@ -558,6 +559,13 @@ function ChannelsPage({ frontendSvcs, t, onStart, onStop, onLogs, onAutostart })
       setMsg(`已保存通道配置：${d.path}`)
     } catch (e) { setMsg(`保存失败：${e.message}`) } finally { setBusy(false) }
   }
+  const testProfile = async (profile) => {
+    setTesting(profile.id); setMsg(`正在测试 ${profile.name} 凭据…`)
+    try {
+      const d = await api('/api/channels/test', { method:'POST', body: JSON.stringify({ profile_id: profile.id, fields: profile.fields || [] }) })
+      setMsg(`${profile.name}：${d.ok ? '测试通过' : '测试失败'} · ${d.message || ''}`)
+    } catch (e) { setMsg(`${profile.name} 测试失败：${e.message}`) } finally { setTesting('') }
+  }
   return <section className="channels-page">
     <div className="stats"><Stat label={t.lists.frontendServices} value={frontendSvcs.length} icon={<Server/>}/><Stat label={t.running} value={frontendSvcs.filter(s=>s.running).length} icon={<CheckCircle2/>}/><Stat label={t.stopped} value={frontendSvcs.filter(s=>!s.running).length} icon={<XCircle/>}/></div>
     <div className="grid2">
@@ -568,7 +576,7 @@ function ChannelsPage({ frontendSvcs, t, onStart, onStop, onLogs, onAutostart })
         {msg && <p className={msg.includes('失败') ? 'err' : 'ok'}>{msg}</p>}
         <div className="channel-config-list">
           {(config?.profiles || []).map(profile => <div className="channel-config-card" key={profile.id}>
-            <h3>{profile.name}</h3><p className="muted">{profile.description}</p>
+            <div className="channel-config-head"><div><h3>{profile.name}</h3><p className="muted">{profile.description}</p></div><button onClick={()=>testProfile(profile)} disabled={busy || testing === profile.id}>{testing === profile.id ? '测试中…' : '测试连接'}</button></div>
             {(profile.fields || []).map(field => <label key={field.name}>{field.label || field.name}<small className="muted"> {field.name}{field.secret && field.has_value ? ' · 已保存' : ''}</small>
               {field.secret
                 ? <SecretInput value={field.value || ''} onChange={v=>patchField(profile.id, field.name, v)} t={t}/>

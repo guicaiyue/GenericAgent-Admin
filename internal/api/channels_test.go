@@ -218,3 +218,66 @@ func findChannelField(t *testing.T, profiles []channelProfile, name string) chan
 	t.Fatalf("field %s not found", name)
 	return channelField{}
 }
+
+func TestChannelTestEndpointUsesSavedSecret(t *testing.T) {
+	root := t.TempDir()
+	writeTestChannelsMyKey(t, root, "saved-secret")
+
+	called := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != http.MethodPost {
+			t.Fatalf("method=%s", r.Method)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["app_id"] != "cli-new" || body["app_secret"] != "saved-secret" {
+			t.Fatalf("body=%v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"tenant_access_token":"ok"}`))
+	}))
+	defer ts.Close()
+	oldEndpoints := channelTestEndpoints
+	oldClient := channelTestHTTPClient
+	channelTestEndpoints.Feishu = ts.URL
+	channelTestHTTPClient = ts.Client()
+	defer func() { channelTestEndpoints = oldEndpoints; channelTestHTTPClient = oldClient }()
+
+	h := newGoalTestServer(t, root).Routes()
+	body := `{"profile_id":"feishu","fields":[{"name":"fs_app_id","value":"cli-new"},{"name":"fs_app_secret","value":""}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/channels/test", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp channelTestResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if !called || !resp.OK || !strings.Contains(resp.Message, "飞书") {
+		t.Fatalf("called=%v resp=%+v", called, resp)
+	}
+}
+
+func TestChannelTestEndpointRejectsMissingSecret(t *testing.T) {
+	root := t.TempDir()
+	h := newGoalTestServer(t, root).Routes()
+	body := `{"profile_id":"dingtalk","fields":[{"name":"dingtalk_client_id","value":"ding-id"},{"name":"dingtalk_client_secret","value":""}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/channels/test", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp channelTestResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.OK || !strings.Contains(resp.Message, "不能为空") {
+		t.Fatalf("resp=%+v", resp)
+	}
+}
