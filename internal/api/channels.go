@@ -159,6 +159,94 @@ func cloneChannelDefinitions() []channelProfile {
 
 var assignRe = regexp.MustCompile(`(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$`)
 
+var pyStrTokenRe = regexp.MustCompile(`'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"`)
+
+// stripPyComment removes a trailing Python `#` comment that lies outside of any
+// string literal. It returns the code portion of the line untouched.
+func stripPyComment(s string) string {
+	inStr := false
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			if c == '\\' {
+				i++
+				continue
+			}
+			if c == quote {
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = true
+			quote = c
+		case '#':
+			return s[:i]
+		}
+	}
+	return s
+}
+
+// bracketDelta returns the net change in open-bracket depth for s, ignoring any
+// brackets that appear inside string literals.
+func bracketDelta(s string) int {
+	depth := 0
+	inStr := false
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			if c == '\\' {
+				i++
+				continue
+			}
+			if c == quote {
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = true
+			quote = c
+		case '[', '{', '(':
+			depth++
+		case ']', '}', ')':
+			depth--
+		}
+	}
+	return depth
+}
+
+func pyUnescape(s string) string {
+	s = strings.ReplaceAll(s, `\\`, "\x00")
+	s = strings.ReplaceAll(s, `\"`, `"`)
+	s = strings.ReplaceAll(s, `\'`, `'`)
+	s = strings.ReplaceAll(s, "\x00", `\`)
+	return s
+}
+
+// collectAssignmentValue gathers the (possibly multi-line) right-hand side of an
+// assignment whose first value fragment is first. It returns the comment-stripped
+// joined value and the index of the last line consumed.
+func collectAssignmentValue(lines []string, start int, first string) (string, int) {
+	frag := strings.TrimSpace(stripPyComment(first))
+	depth := bracketDelta(frag)
+	parts := []string{frag}
+	end := start
+	for depth > 0 && end+1 < len(lines) {
+		end++
+		seg := strings.TrimSpace(stripPyComment(lines[end]))
+		depth += bracketDelta(seg)
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	return strings.Join(parts, " "), end
+}
+
 func parseChannelAssignments(content string) map[string]string {
 	out := map[string]string{}
 	allowed := map[string]string{}
@@ -167,12 +255,19 @@ func parseChannelAssignments(content string) map[string]string {
 			allowed[f.Name] = f.Type
 		}
 	}
-	for _, m := range assignRe.FindAllStringSubmatch(content, -1) {
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	for i := 0; i < len(lines); i++ {
+		m := assignRe.FindStringSubmatch(lines[i])
+		if len(m) != 3 {
+			continue
+		}
 		typ, ok := allowed[m[1]]
 		if !ok {
 			continue
 		}
-		out[m[1]] = normalizeChannelDisplayValue(m[2], typ)
+		value, end := collectAssignmentValue(lines, i, m[2])
+		out[m[1]] = normalizeChannelDisplayValue(value, typ)
+		i = end
 	}
 	return out
 }
@@ -187,16 +282,21 @@ func upsertChannelAssignments(content string, values map[string]string) string {
 		}
 	}
 	seen := map[string]bool{}
-	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	raw := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	if strings.TrimSpace(content) == "" {
-		lines = []string{}
+		raw = []string{}
 	}
-	for i, line := range lines {
-		m := assignRe.FindStringSubmatch(line)
+	lines := []string{}
+	for i := 0; i < len(raw); i++ {
+		m := assignRe.FindStringSubmatch(raw[i])
 		if len(m) == 3 && allowed[m[1]] {
-			lines[i] = formatted[m[1]]
+			_, end := collectAssignmentValue(raw, i, m[2])
+			lines = append(lines, formatted[m[1]])
 			seen[m[1]] = true
+			i = end
+			continue
 		}
+		lines = append(lines, raw[i])
 	}
 	if strings.TrimSpace(content) != "" && (len(lines) == 0 || strings.TrimSpace(lines[len(lines)-1]) != "") {
 		lines = append(lines, "")
@@ -226,16 +326,30 @@ func normalizeChannelDisplayValue(raw, typ string) string {
 	case "bool":
 		return strings.ToLower(raw)
 	case "list":
-		if strings.HasPrefix(raw, "[") && strings.HasSuffix(raw, "]") {
-			var arr []string
-			if err := json.Unmarshal([]byte(strings.ReplaceAll(raw, "'", "\"")), &arr); err == nil {
-				return strings.Join(arr, ",")
+		inner := raw
+		if i := strings.Index(raw, "["); i >= 0 {
+			if j := strings.LastIndex(raw, "]"); j > i {
+				inner = raw[i+1 : j]
 			}
 		}
-		return strings.Trim(raw, "'\"")
+		if matches := pyStrTokenRe.FindAllStringSubmatch(inner, -1); len(matches) > 0 {
+			items := make([]string, 0, len(matches))
+			for _, mm := range matches {
+				tok := mm[1]
+				if tok == "" && mm[2] != "" {
+					tok = mm[2]
+				}
+				items = append(items, pyUnescape(tok))
+			}
+			return strings.Join(items, ",")
+		}
+		return strings.Trim(strings.TrimSpace(inner), "'\"")
 	default:
 		if v, err := strconv.Unquote(raw); err == nil {
 			return v
+		}
+		if len(raw) >= 2 && raw[0] == '\'' && raw[len(raw)-1] == '\'' {
+			return pyUnescape(raw[1 : len(raw)-1])
 		}
 		return strings.Trim(raw, "'\"")
 	}
