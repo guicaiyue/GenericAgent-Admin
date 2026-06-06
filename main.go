@@ -37,6 +37,9 @@ func main() {
 		log.Fatalf("chdir %s failed: %v", cwd, err)
 	}
 	cfgStore := config.NewStore(cwd)
+	if launch.Config != "" {
+		cfgStore = config.NewStoreWithPath(launch.Config)
+	}
 	if err := cfgStore.Load(); err != nil {
 		log.Printf("load config: %v", err)
 	}
@@ -97,12 +100,14 @@ func main() {
 type launchOptions struct {
 	Headless  bool
 	NoBrowser bool
+	Config    string // path to config file (empty = default config.local.json)
 }
 
 func parseLaunchOptions() launchOptions {
 	headlessFlag := flag.Bool("headless", false, "run without browser, tray, or desktop pet; intended for Linux servers")
 	serverOnlyFlag := flag.Bool("server-only", false, "alias for --headless")
 	noBrowserFlag := flag.Bool("no-browser", false, "do not open the web UI automatically")
+	configFlag := flag.String("config", "", "path to config file (default: config.local.json in working directory)")
 	flag.Parse()
 
 	headless := *headlessFlag || *serverOnlyFlag || envBool("GA_ADMIN_HEADLESS") || envBool("GA_ADMIN_SERVER_ONLY")
@@ -113,6 +118,7 @@ func parseLaunchOptions() launchOptions {
 	return launchOptions{
 		Headless:  headless,
 		NoBrowser: *noBrowserFlag || envBool("GA_ADMIN_NO_BROWSER"),
+		Config:    *configFlag,
 	}
 }
 
@@ -226,6 +232,10 @@ func (p *petActivityState) restoreBaseLocked() {
 }
 
 func appRoot() (string, error) {
+	// gagentdev: use GA_DEV_CONFIG_ROOT if set (overrides exeDir for dev port isolation)
+	if envRoot := os.Getenv("GA_DEV_CONFIG_ROOT"); envRoot != "" {
+		return envRoot, nil
+	}
 	wd, wdErr := os.Getwd()
 	exe, err := os.Executable()
 	if err != nil {

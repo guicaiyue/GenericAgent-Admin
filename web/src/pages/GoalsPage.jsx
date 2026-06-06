@@ -4,7 +4,7 @@ import { copyText, formatBytes, formatDuration, formatGoalTime, goalBudgetPercen
 import { Panel } from '../components/common'
 import { TurnList } from '../components/turns'
 
-export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTurns, setMaxTurns, llmNo, setLLMNo, outputBytes, setOutputBytes, autoRefresh, setAutoRefresh, selected, output, outputMeta, busy, onStart, onStop, onDelete, onRefresh, onOutput, onClearOutput, setMsg }) {
+export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget, maxTurns, setMaxTurns, llmNo, setLLMNo, outputBytes, setOutputBytes, autoRefresh, setAutoRefresh, selected, output, outputMeta, busy, profiles, onStart, onStop, onDelete, onRefresh, onOutput, onClearOutput, setMsg }) {
   const goalList = goals || []
   const running = goalList.filter(g => g.running).length
   const selectedGoal = goalList.find(g => g.id === selected) || outputMeta?.goal || null
@@ -53,7 +53,10 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
       <div className="form-grid compact-form goal-params">
         <label>{t.fields.budgetMinutes}<input type="number" min="1" max="43200" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
         <label>{t.fields.maxTurns}<input type="number" min="0" max="10000" value={maxTurns} onChange={e=>setMaxTurns(e.target.value)}/></label>
-        <label>{t.fields.llmNo}<input type="number" min="0" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
+        <label>{t.fields.llmNo}<select value={llmNo ?? ''} onChange={e=>setLLMNo(e.target.value === '' ? '' : Number(e.target.value))}>
+          <option value="">默认</option>
+          {(profiles || []).map((p, i) => <option key={p.var_name} value={i}>{p.var_name}</option>)}
+        </select></label>
       </div>
       <div className="actions goal-start-actions">
         <button className="primary" disabled={busy || !objective.trim()} onClick={onStart}><Play size={14}/>{t.start}</button>

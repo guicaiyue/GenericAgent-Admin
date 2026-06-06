@@ -1,0 +1,15 @@
+{
+  "ga_root": "/vol1/1000/开发/NAS/GenericAgent",
+  "chat_data_dir": "/root/.config/GenericAgent-Admin-dev",
+  "host": "0.0.0.0",
+  "port": 13838,
+  "log_tail_lines": 200,
+  "buffer_lines": 1000,
+  "python_path": "/vol1/1000/开发/NAS/GenericAgent/.venv/bin/python",
+  "proxy_mode": "off",
+  "http_proxy": "",
+  "https_proxy": "",
+  "all_proxy": "",
+  "no_proxy": "",
+  "service_autostart": []
+}

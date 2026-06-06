@@ -104,8 +104,9 @@ func Default() AppConfig {
 }
 
 type Store struct {
-	Root string
-	Cfg  AppConfig
+	Root       string
+	CustomPath string // absolute path to config file; overrides Root/config.local.json
+	Cfg        AppConfig
 }
 
 func NewStore(root string) *Store {
@@ -114,7 +115,19 @@ func NewStore(root string) *Store {
 	return s
 }
 
-func (s *Store) path() string { return filepath.Join(s.Root, "config.local.json") }
+// NewStoreWithPath creates a Store that reads from an absolute config file path.
+func NewStoreWithPath(path string) *Store {
+	s := &Store{CustomPath: path, Cfg: Default()}
+	_ = s.Load()
+	return s
+}
+
+func (s *Store) path() string {
+	if s.CustomPath != "" {
+		return s.CustomPath
+	}
+	return filepath.Join(s.Root, "config.local.json")
+}
 
 func (s *Store) Load() error {
 	data, err := os.ReadFile(s.path())
