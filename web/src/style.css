@@ -3207,3 +3207,22 @@ html[data-theme="dark"] .goal-tabs button.active { color: var(--ink-link) !impor
 .service-start-panel select { min-height: 38px; width: 100%; }
 .service-start-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
+/* Round 20: 480px ultra-narrow viewport */
+@media (max-width: 480px) {
+  header { padding: 12px 14px; }
+  header p { font-size: 12px; }
+  .badges { flex-wrap: wrap; gap: 6px; }
+  .stats { grid-template-columns: 1fr; gap: 10px; }
+  .stats-card { padding: 12px; font-size: 12px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .panel { padding: 12px 14px; }
+  .panel-title { font-size: 15px; }
+  input[type=text], input[type=number], input[type=url], select, textarea { font-size: 14px; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  .chat-grid, .goal-grid, .models-layout { display: block; }
+  .sidebar { height: auto; }
+  .inline-form { flex-direction: column; gap: 8px; }
+  .inline-form button { width: 100%; }
+  button { min-height: 36px; font-size: 13px; }
+}
+
