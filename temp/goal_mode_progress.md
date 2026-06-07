@@ -364,3 +364,9 @@ MM web/src/style.css
 - 构建与环境边界：`npm --prefix web run build` 通过，生成 `web/dist/assets/index-CEeh1F3j.js`；仅精确重启 13838 开发 air 进程，确认 8787 生产监听未改动。
 - 浏览器实测：13838 页面实际加载 `index-CEeh1F3j.js`；在 Autonomous 页打开停止的 reflect 服务启动 modal，确认 focusables 为 `select / 取消 / Start`，`Tab` 正向回绕、`Shift+Tab` 反向回绕、`ESC` 关闭并回焦 Start，且未触发真实服务启动。
 - 额外验证：`go test ./internal/api` 通过；`go test ./internal/ga` 暴露既有平台相关失败：两个 `StartGoal` 用例期望“无解释器时 StartGoal 失败”，但当前 Linux 环境会 fallback 到系统 `python3`，`cmd.Start()` 成功后异步失败，因此 StartGoal 返回 nil。该失败不涉及本次 web 变更，未修改后端测试/逻辑。
+
+## 2026-06-08 - Files 页目录刷新错误反馈
+- 换角度检查前端防御性：ModelsPage 为纯展示层，真实 API 逻辑在 App.jsx 且已有 try/catch；进一步检查 Files 页发现 `loadFiles` 直接调用 `/api/files/list`，失败时无 busy 态和错误反馈。
+- 修复 `web/src/App.jsx`：`loadFiles(path, { manageBusy = true })` 增加 busy 包裹、try/catch、失败 `setMsg(e.message)` 并清空文件列表，避免用户点击无响应。
+- 初始化 `load()` 与 `saveFile()` 的内部刷新调用传入 `{ manageBusy:false }`，避免嵌套调用提前清除外层 busy 状态。
+- 验证：`npm run build` 通过；dev 13838 热加载后 HTML/entry/App chunk 与 dist 一致：`index-EwL9pKQo.js` → `App-wLS74r8X.js`，served App chunk 包含 `manageBusy` 修复。

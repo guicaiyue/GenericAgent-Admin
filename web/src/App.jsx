@@ -220,7 +220,7 @@ export default function App() {
       const first = serviceList[0]?.name; if (!selected && first) setSelected(first)
       const firstGoal = pickGoalId(goalItems, selectedGoal)
       if (!selectedGoal && firstGoal) setSelectedGoal(firstGoal)
-      await Promise.all([loadFiles(filePath), loadBBS().catch(e => setBbsStatus({ error:e.message })), refreshTMWebDriverStatus().catch(e => setTmwdStatus({ ok:false, error:e.message }))])
+      await Promise.all([loadFiles(filePath, { manageBusy: false }), loadBBS().catch(e => setBbsStatus({ error:e.message })), refreshTMWebDriverStatus().catch(e => setTmwdStatus({ ok:false, error:e.message }))])
     } catch (e) { setMsg(e.message) } finally { setBusy(false) }
   }
   useEffect(() => { load() }, [])
@@ -421,10 +421,22 @@ export default function App() {
   }, [tab, selectedGoal, goalOutputBytes, goalAutoRefresh])
   const toggleTask = async (id, enabled) => { setBusy(true); try { await api('/api/schedule/toggle', { dangerous:true, method:'POST', body: JSON.stringify({ id, enabled }) }); setMsg(t.hints.taskToggled); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
-  const loadFiles = async (path = '') => { const d = await api(`/api/files/list?path=${encodeURIComponent(path || '')}`); setFileList(d.items || d.entries || []); setFilePath(path || '') }
+  const loadFiles = async (path = '', { manageBusy = true } = {}) => {
+    if (manageBusy) setBusy(true)
+    try {
+      const d = await api(`/api/files/list?path=${encodeURIComponent(path || '')}`)
+      setFileList(d.items || d.entries || [])
+      setFilePath(path || '')
+    } catch (e) {
+      setMsg(e.message)
+      setFileList([])
+    } finally {
+      if (manageBusy) setBusy(false)
+    }
+  }
   const readFile = async (path = filePath) => { setBusy(true); try { const d = await api(`/api/files/read?path=${encodeURIComponent(path)}`); setFileContent(d.content || ''); setFilePath(path); navigateTo('files') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const tailFile = async (path = filePath) => { if (!path) return; setBusy(true); try { const d = await api(`/api/files/tail?path=${encodeURIComponent(path)}&lines=${tailLines}`); setFileContent(d.content || ''); setFilePath(path); navigateTo('files') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const saveFile = async () => { if (!filePath) return; if (!confirmDanger('files-write', `写入文件 ${filePath}？将覆盖内容并由后端生成备份。`)) return; setBusy(true); try { const d = await api('/api/files/write', { dangerous:true, method:'POST', body: JSON.stringify({ path:filePath, content:fileContent }) }); setFileContent(d.content || fileContent); setMsg(t.hints.fileSaved || t.saved || 'Saved'); await loadFiles(filePath.includes('/') ? filePath.split('/').slice(0,-1).join('/') : '') } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const saveFile = async () => { if (!filePath) return; if (!confirmDanger('files-write', `写入文件 ${filePath}？将覆盖内容并由后端生成备份。`)) return; setBusy(true); try { const d = await api('/api/files/write', { dangerous:true, method:'POST', body: JSON.stringify({ path:filePath, content:fileContent }) }); setFileContent(d.content || fileContent); setMsg(t.hints.fileSaved || t.saved || 'Saved'); await loadFiles(filePath.includes('/') ? filePath.split('/').slice(0,-1).join('/') : '', { manageBusy: false }) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
 
 
   const refreshVersionStatus = async () => {
