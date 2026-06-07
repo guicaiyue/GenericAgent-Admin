@@ -62,7 +62,7 @@ function InlineMarkdown({ text = '' }) {
       if (t.type === 'code') return <code key={i}>{t.text}</code>
       if (t.type === 'strong') return <strong key={i}>{t.text}</strong>
       if (t.type === 'em') return <em key={i}>{t.text}</em>
-      if (t.type === 'link') return <a key={i} href={t.href} target="_blank" rel="noreferrer">{t.text}</a>
+      if (t.type === 'link') return <a key={i} href={t.href} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{t.text}</a>
       return <span key={i}>{t.text}</span>
     })}
   </>
