@@ -78,20 +78,45 @@ export default function App() {
   const goalOutputSeq = useRef(0), goalRefreshBusy = useRef(false)
   const appScope = useRef(null)
   const modalPanelRef = useRef(null)
+  const modalReturnFocusRef = useRef(null)
+  const busyRef = useRef(busy)
+
+  useEffect(() => { busyRef.current = busy }, [busy])
 
   useEffect(() => {
     if (!serviceStartDialog) return
-    const onKey = (e) => { if (e.key === 'Escape' && !busy) setServiceStartDialog(null) }
+    modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const getFocusable = () => {
+      const el = modalPanelRef.current
+      if (!el) return []
+      return [...el.querySelectorAll('select, button, [href], input, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(node => !node.disabled && node.getAttribute('aria-hidden') !== 'true')
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !busyRef.current) { setServiceStartDialog(null); return }
+      if (e.key !== 'Tab') return
+      const el = modalPanelRef.current
+      if (!el) return
+      const focusable = getFocusable()
+      if (!focusable.length) { e.preventDefault(); el.focus?.(); return }
+      const first = focusable[0], last = focusable[focusable.length - 1]
+      if (e.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) { e.preventDefault(); last.focus?.(); return }
+      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus?.() }
+    }
     window.addEventListener('keydown', onKey)
     // focus the first interactive element for keyboard / screen reader users
     const t = window.setTimeout(() => {
       const el = modalPanelRef.current
       if (!el) return
-      const focusable = el.querySelector('select, button, [href], input, [tabindex]:not([tabindex="-1"])')
-      ;(focusable || el).focus?.()
+      ;(getFocusable()[0] || el).focus?.()
     }, 0)
-    return () => { window.removeEventListener('keydown', onKey); window.clearTimeout(t) }
-  }, [serviceStartDialog, busy])
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.clearTimeout(t)
+      modalReturnFocusRef.current?.focus?.()
+      modalReturnFocusRef.current = null
+    }
+  }, [serviceStartDialog])
 
   useGSAP(() => {
     if (tab === 'chat' || prefersReducedMotion()) return

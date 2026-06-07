@@ -351,3 +351,16 @@ MM web/src/style.css
 - Risk found and closed: touching Go files did not refresh the dev server because stale child process still owned `13838`; resolved by probing process cwd/cmdline/logs and restarting exact dev air process, not production.
 - Final checks before this note: git branch was clean and synced to `origin/feat/llm-start-modal-work`; 13838 and 8787 listener/cwd/cmdline boundaries were rechecked.
 - Next possible angle: continue from first-user-review perspective on remaining keyboard/focus gaps in other modals or high-risk actions, then repeat real-browser verification on dev `13838`.
+
+## 2026-06-08 Round2 追加：服务启动 Modal 键盘焦点闭环
+
+- 审阅发现：前一轮已补齐启动前确认 modal、初始焦点、ESC/backdrop 关闭，但从无障碍/键盘用户角度看，`Tab` 仍可能逃出 modal，焦点关闭后也未显式回到触发按钮。
+- 实现变更：在 `web/src/App.jsx` 为服务启动 dialog 增加焦点陷阱：
+  - 打开时记录触发元素并聚焦 modal 内第一个可交互控件；
+  - `Tab`/`Shift+Tab` 在 `select / 取消 / Start` 间正反向循环；
+  - `Escape` 在非 busy 状态关闭；
+  - 关闭后回焦到原 Start 按钮；
+  - 用 `busyRef` 避免 busy 状态变化导致 effect 重跑、提前回焦。
+- 构建与环境边界：`npm --prefix web run build` 通过，生成 `web/dist/assets/index-CEeh1F3j.js`；仅精确重启 13838 开发 air 进程，确认 8787 生产监听未改动。
+- 浏览器实测：13838 页面实际加载 `index-CEeh1F3j.js`；在 Autonomous 页打开停止的 reflect 服务启动 modal，确认 focusables 为 `select / 取消 / Start`，`Tab` 正向回绕、`Shift+Tab` 反向回绕、`ESC` 关闭并回焦 Start，且未触发真实服务启动。
+- 额外验证：`go test ./internal/api` 通过；`go test ./internal/ga` 暴露既有平台相关失败：两个 `StartGoal` 用例期望“无解释器时 StartGoal 失败”，但当前 Linux 环境会 fallback 到系统 `python3`，`cmd.Start()` 成功后异步失败，因此 StartGoal 返回 nil。该失败不涉及本次 web 变更，未修改后端测试/逻辑。
