@@ -20,12 +20,12 @@
 | 20 | 3f3d095 | 480px超窄屏@media响应式适配 |
 | 21 | ddcc853 | Chat输入区请求超时/取消/重试 |
 | 22 | 8ef4210 | Goals键盘快捷键j/k导航与可访问提示 |
-| 23 | 待提交 | Chat会话侧栏搜索+消息复制快捷按钮 |
+| 23 | 20cd522 | Chat会话侧栏搜索+消息复制快捷按钮 |
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 待提交(R23)
+- 最新提交: 20cd522 (R23实现提交)
 
 ## 验证
 - dev服务: http://localhost:13838
