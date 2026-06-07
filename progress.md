@@ -26,6 +26,7 @@
 | 26 | 8f25cd0 | 简版ChatPage会话删除按钮+确认弹窗+非嵌套行布局 |
 | 27 | 76371cc | 主题切换按钮Alt+T快捷键+可访问状态提示+可视快捷键胶囊 |
 | 28 | 7acb728 | BBS回帖无障碍化：aria-label+aria-live+aria-disabled+显式提示+bbs-hint样式 |
+| 29 | a6a6b85 | API网络错误归一化：ApiError类+15s超时+网络错误包装
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
@@ -41,6 +42,7 @@
 - R26验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 - R27验证: 源码断言确认Alt+T监听/input保护/aria-label/title/kbd提示；`cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 - R28验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
+- R29验证: `cd web && npm run build` 成功；调用方 e.message 兼容（4个 catch block 已确认）；提交前已 `git restore web/dist`
 
 ## 下轮候选角度
 1. API超时提示/重试按钮
