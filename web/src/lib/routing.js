@@ -24,7 +24,6 @@ const TASK_ROUTE_ALIASES = {
   schedule: 'scheduled',
   scheduled: 'scheduled',
   runs: 'runs',
-  goals: 'runs',
   reports: 'reports',
 }
 

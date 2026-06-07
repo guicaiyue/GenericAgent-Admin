@@ -6,8 +6,10 @@ const setLocation = (url) => {
   globalThis.window = { location: new URL(url) }
 }
 
-test('parseRoute maps aliases and task sub tabs', () => {
+test('parseRoute maps aliases and keeps top-level goals routable', () => {
   setLocation('http://localhost/goals')
+  assert.deepEqual(parseRoute(), { tab: 'goals', taskSubTab: 'services' })
+  setLocation('http://localhost/runs')
   assert.deepEqual(parseRoute(), { tab: 'tasks', taskSubTab: 'runs' })
   setLocation('http://localhost/tmwd')
   assert.deepEqual(parseRoute(), { tab: 'control', taskSubTab: 'services' })
