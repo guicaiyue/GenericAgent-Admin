@@ -32,6 +32,37 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
   const openOutput = (id) => { onOutput(id); setGoalTab('output') }
   const showStatePath = (path) => { if (path) setMsg(`${t.fields.stateFile}: ${path}`) }
 
+  // Round 21: localStorage draft auto-save (objective / budget / maxTurns / llmNo)
+  const DRAFT_KEY = 'ga_goals_draft_v1'
+  const [draftRestored, setDraftRestored] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) { setDraftRestored(false); return }
+      const d = JSON.parse(raw)
+      if (d && typeof d === 'object') {
+        if (typeof d.objective === 'string' && d.objective && !objective) setObjective(d.objective)
+        if (d.budget != null && String(d.budget)) setBudget(String(d.budget))
+        if (d.maxTurns != null && String(d.maxTurns)) setMaxTurns(String(d.maxTurns))
+        if (d.llmNo != null && String(d.llmNo)) setLLMNo(String(d.llmNo))
+        setDraftRestored(true)
+      }
+    } catch (e) { /* 忽略损坏的草稿 */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    try {
+      if (objective || budget || maxTurns || llmNo) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ objective, budget, maxTurns, llmNo, ts: Date.now() }))
+      } else {
+        localStorage.removeItem(DRAFT_KEY)
+      }
+    } catch (e) { /* localStorage可能满了 */ }
+  }, [objective, budget, maxTurns, llmNo])
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); setMsg('草稿已清除') } catch (e) {}
+  }
+
   return <section className="goals-page">
     <div className="stats schedule-stats goal-stats">
       <div className="stat"><Target/><span>{t.nav.goals}</span><b>{goalList.length}</b></div>
@@ -47,6 +78,7 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
 
     {goalTab==='start' && <Panel title={t.fields.startGoalMode} className="goal-start-panel goal-tab-panel">
       <p className="muted">{t.desc.goals}</p>
+      {draftRestored && <p className="muted" style={{color:'var(--accent)',fontSize:'12px',marginBottom:'4px'}}>已恢复上次未提交的草稿 · <button style={{background:'none',border:'none',padding:0,color:'var(--accent)',cursor:'pointer',fontSize:'12px',textDecoration:'underline'}} onClick={clearDraft}>清除草稿</button></p>}
       <label className="goal-field">{t.fields.objective}
         <textarea className="goal-objective" value={objective} maxLength={16384} onChange={e=>setObjective(e.target.value)} placeholder={t.fields.goalPlaceholder}/>
       </label>
@@ -56,7 +88,7 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
         <label>{t.fields.llmNo}<input type="number" min="0" max="31" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
       </div>
       <div className="actions goal-start-actions">
-        <button className="primary" disabled={busy || !objective.trim()} onClick={() => { if (window.confirm(`确认启动目标？\n\n目标内容：${objective.trim().slice(0, 60)}${objective.length > 60 ? '…' : ''}\n\n最大轮数：${maxTurns || 0}，预算：${budget} 分钟`)) onStart() }}><Play size={14}/>{t.start}</button>
+        <button className="primary" disabled={busy || !objective.trim()} onClick={() => { if (window.confirm(`确认启动目标？\n\n目标内容：${objective.trim().slice(0, 60)}${objective.length > 60 ? '…' : ''}\n\n最大轮数：${maxTurns || 0}，预算：${budget} 分钟`)) { clearDraft(); onStart() } }}><Play size={14}/>{t.start}</button>
         <button disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{t.refresh}</button>
       </div>
     </Panel>}
