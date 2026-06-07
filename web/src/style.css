@@ -399,13 +399,17 @@ header p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 760px; 
 .chat-sidebar-search { margin:12px; }
 .chat-sidebar-search input, .chat-search input { flex:1; min-width:0; border:0; background:transparent; outline:0; }
 .chat-session-list { display:flex; flex-direction:column; gap:6px; padding:0 10px 12px; overflow:auto; }
-.chat-session-item { display:flex; align-items:flex-start; gap:8px; min-height:48px; padding:8px 10px; border:1px solid transparent; border-radius:12px; background:transparent; color:var(--text); cursor:pointer; text-align:left; }
+.chat-session-row { display:grid; grid-template-columns:minmax(0, 1fr) 32px; align-items:stretch; gap:4px; border:1px solid transparent; border-radius:12px; }
+.chat-session-item { display:flex; align-items:flex-start; gap:8px; min-height:48px; padding:8px 10px; border:0; border-radius:12px; background:transparent; color:var(--text); cursor:pointer; text-align:left; min-width:0; }
 .chat-session-item > svg { flex:0 0 auto; margin-top:2px; color:var(--muted); }
 .chat-session-item span { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .chat-session-item b, .chat-session-item em { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-style:normal; }
 .chat-session-item b { font-size:12px; font-weight:650; color:var(--text); }
 .chat-session-item em { font-size:11px; color:var(--muted); }
-.chat-session-item:hover, .chat-session-item.active { border-color:rgba(16,163,127,.28); background:rgba(16,163,127,.10); }
+.chat-session-delete { display:inline-flex; align-items:center; justify-content:center; width:32px; min-height:48px; border:0; border-radius:10px; background:transparent; color:var(--muted); cursor:pointer; opacity:.62; }
+.chat-session-delete:hover:not(:disabled), .chat-session-delete:focus-visible { color:var(--danger); background:rgba(220,38,38,.10); opacity:1; }
+.chat-session-row:hover, .chat-session-row.active { border-color:rgba(16,163,127,.28); background:rgba(16,163,127,.10); }
+.chat-session-row:hover .chat-session-delete, .chat-session-delete:focus-visible { opacity:1; }
 .chat-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border-bottom:1px solid var(--border); background:rgba(247,245,241,.78); }
 .chat-header .chat-search { flex:1; min-width:180px; }
 .chat-search button { border:0; background:transparent; cursor:pointer; color:var(--muted); padding:0; display:flex; }

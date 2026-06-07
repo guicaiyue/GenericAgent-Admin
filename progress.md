@@ -23,11 +23,12 @@
 | 23 | 20cd522 | Chat会话侧栏搜索+消息复制快捷按钮 |
 | 24 | cf84a01 | 主题三态切换(system/dark/light)+系统主题监听；ErrorBoundary适配深色变量 |
 | 25 | 920adb2 | Chat会话列表摘要(summary)字段+主/简版入口两行预览与摘要搜索 |
+| 26 | 待提交 | 简版ChatPage会话删除按钮+确认弹窗+非嵌套行布局 |
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 见当前分支HEAD；R25实现提交 920adb2
+- 最新提交: 见当前分支HEAD；R25实现提交 920adb2；R26待提交
 
 ## 验证
 - dev服务: http://localhost:13838
@@ -35,11 +36,11 @@
 - R23验证: `npm run build` 成功；未提交web/dist新hash产物，避免.gitignore导致index.html断链
 - R24验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 - R25验证: `go test ./internal/api` 成功；`cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
+- R26验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 
 ## 下轮候选角度
 1. API超时提示/重试按钮
 2. 表单草稿自动保存(localStorage)
 3. 键盘快捷键(j/k导航Goals)
-4. Chat会话删除API/按钮(后端当前未提供DELETE)
-5. Chat会话列表空态/长标题视觉回归
-6. 主题切换按钮可访问性/快捷键提示
+4. Chat会话列表空态/长标题视觉回归
+5. 主题切换按钮可访问性/快捷键提示

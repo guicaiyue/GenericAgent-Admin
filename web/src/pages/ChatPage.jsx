@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Play, RefreshCw, Search, X, XCircle, MessageSquare } from 'lucide-react'
+import { Play, RefreshCw, Search, X, XCircle, MessageSquare, Trash2 } from 'lucide-react'
 import { api, apiStream } from '../lib/api'
 import { TurnList } from '../components/turns'
 import { copyText } from '../lib/format'
+import { confirmDanger } from '../lib/danger'
 
 export function ChatPage({ t }) {
   const [sessions, setSessions] = useState([]), [sid, setSid] = useState(''), [messages, setMessages] = useState([])
@@ -13,6 +14,22 @@ export function ChatPage({ t }) {
   const loadSessions = async (autoOpen = false) => { try { const d = await api('/api/chat/sessions'); setSessions(d.sessions || []); if (autoOpen && d.sessions?.[0]) await openSession(d.sessions[0].id) } catch(e){ /* backend可能不支持 */ } }
   const openSession = async (id) => { setQ(''); try { const d = await api(`/api/chat/session/${id}`); setSid(d.id); setMessages(d.messages || []) } catch(e){ setErr(e.message) } }
   const newSession = async () => { try { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); setSid(d.id); setMessages([]); setQ(''); await loadSessions(false) } catch(e){ setErr(e.message) } }
+  const deleteSession = async (id) => {
+    if (!id || busy) return
+    const target = sessions.find(s => s.id === id)
+    if (!confirmDanger('chat-session-delete', `删除会话「${sessionTitle(target || { id })}」？此操作不可恢复。`)) return
+    try {
+      await api(`/api/chat/session/${id}`, { method:'DELETE' })
+      const nextSessions = sessions.filter(s => s.id !== id)
+      setSessions(nextSessions)
+      setErr('')
+      if (id === sid) {
+        const next = nextSessions[0]?.id || ''
+        if (next) await openSession(next)
+        else { setSid(''); setMessages([]); setQ('') }
+      }
+    } catch(e) { setErr(`删除失败：${e.message}`) }
+  }
   useEffect(()=>{ loadSessions(true).catch(()=>{}) }, [])
   const cancel = () => { if (abortRef.current) { abortRef.current.abort(); abortRef.current = null } clearTimeout(timerRef.current) }
   const send = async () => {
@@ -55,9 +72,13 @@ export function ChatPage({ t }) {
     <div className="chat-sidebar-search"><Search size={12}/><input value={sq} onChange={e=>setSq(e.target.value)} placeholder="搜索会话..."/></div>
     <div className="chat-session-list">
       {filteredSessions.length === 0 && <p className="muted" style={{fontSize:'11px',padding:'8px'}}>无匹配会话</p>}
-      {filteredSessions.map(s => <button key={s.id} className={`chat-session-item ${s.id===sid?'active':''}`} onClick={()=>openSession(s.id)} title={`${sessionTitle(s)}
+      {filteredSessions.map(s => <div key={s.id} className={`chat-session-row ${s.id===sid?'active':''}`} title={`${sessionTitle(s)}
 ${sessionSummary(s)}`}>
-        <MessageSquare size={13}/><span><b>{sessionTitle(s)}</b><em>{sessionSummary(s)}</em></span></button>)}
+        <button type="button" className="chat-session-item" onClick={()=>openSession(s.id)}>
+          <MessageSquare size={13}/><span><b>{sessionTitle(s)}</b><em>{sessionSummary(s)}</em></span>
+        </button>
+        <button type="button" className="chat-session-delete" disabled={busy} onClick={()=>deleteSession(s.id)} title={`删除 ${sessionTitle(s)}`}><Trash2 size={13}/></button>
+      </div>)}
     </div>
   </aside>}
   <div className="chat-main">
