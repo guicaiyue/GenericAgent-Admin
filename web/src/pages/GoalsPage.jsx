@@ -209,7 +209,7 @@ function GoalRunCard({ g, t, selected, onOutput, onState, onStop, onDelete }) {
       <button disabled={!g.state_file} onClick={()=>onState(g.state_file)}>{t.fields.stateFile}</button>
       <button disabled={!g.id || g.missing_log} onClick={()=>onOutput(g.id)}>{t.fields.logFile}</button>
       <button disabled={!canStop} title={g.managed ? (g.pid_trusted ? t.goalStopLevels?.exact_pid : t.goalTrust?.untrusted) : t.goalStopLevels?.soft_state} onClick={()=>onStop(g)}><Square size={14}/>{t.stop}</button>
-      <button className="danger" disabled={!canDelete} title={!canDelete ? t.hints.goalDeleteRunning : t.hints.goalDeleteConfirm.replace('{id}', g.id || '-')} onClick={()=>onDelete?.(g)}><Trash2 size={14}/>{t.delete}</button>
+      <button className="danger" disabled={!canDelete} title={!canDelete ? t.hints.goalDeleteRunning : t.hints.goalDeleteConfirm.replace('{id}', g.id || '-')} onClick={() => { if (canDelete && window.confirm(t.hints.goalDeleteConfirm.replace('{id}', g.id || '-'))) onDelete?.(g) }}><Trash2 size={14}/>{t.delete}</button>
     </div>
   </div>
 }
