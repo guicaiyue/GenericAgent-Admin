@@ -756,11 +756,17 @@ export default function ChatApp() {
 
   const deleteSession = async (id) => {
     if (!id || !confirmDanger('chat-session-delete', '删除此会话？此操作不可恢复。')) return
-    await api(`/api/chat/session/${id}`, { method:'DELETE' })
+    try {
+      await api(`/api/chat/session/${id}`, { method:'DELETE' })
+    } catch (e) {
+      setErr(`删除失败：${e.message || String(e)}`)
+      return
+    }
     setSessions(xs => xs.filter(x => x.id !== id))
     setMenuOpen('')
     setMenuPos(null)
-    if (id === sid) { setSid(''); setMessages([]); setNotice('会话已删除') }
+    if (id === sid) { setSid(''); setMessages([]) }
+    setNotice('会话已删除')
     setTimeout(() => loadSessions('', { open:true }).catch(()=>{}), 0)
   }
 
@@ -805,8 +811,11 @@ export default function ChatApp() {
     syncQueue(rest)
     return first
   }
+  const MAX_QUEUE = 20
   const enqueueMessage = (item) => {
-    const next = [...queuedRef.current, { ...item, id:`q-${Date.now()}-${Math.random().toString(16).slice(2)}`, queuedAt:Date.now() }]
+    const current = queuedRef.current
+    if (current.length >= MAX_QUEUE) { setErr(`队列已满（最多 ${MAX_QUEUE} 条），请等待当前消息完成后再试`); return }
+    const next = [...current, { ...item, id:`q-${Date.now()}-${Math.random().toString(16).slice(2)}`, queuedAt:Date.now() }]
     syncQueue(next)
     setNotice(`已加入队列（${next.length} 条）。点击“引导”可中止当前回复并立即发送。`)
   }
