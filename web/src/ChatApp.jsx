@@ -596,7 +596,36 @@ export default function ChatApp() {
   const streamAbortRef = useRef(null)
   const runSeqRef = useRef(0)
   const queuedRef = useRef([])
+  const mountedRef = useRef(false)
+  const scheduledTimersRef = useRef(new Set())
+  const scheduledFramesRef = useRef(new Set())
   const chatScope = useRef(null)
+
+  const scheduleTask = useCallback((fn, delay = 0) => {
+    const handle = window.setTimeout(() => {
+      scheduledTimersRef.current.delete(handle)
+      if (mountedRef.current) fn()
+    }, delay)
+    scheduledTimersRef.current.add(handle)
+    return handle
+  }, [])
+
+  const scheduleFrame = useCallback((fn) => {
+    if (!window.requestAnimationFrame) return scheduleTask(fn, 16)
+    const handle = window.requestAnimationFrame(() => {
+      scheduledFramesRef.current.delete(handle)
+      if (mountedRef.current) fn()
+    })
+    scheduledFramesRef.current.add(handle)
+    return handle
+  }, [scheduleTask])
+
+  const clearScheduledWork = useCallback(() => {
+    scheduledTimersRef.current.forEach((handle) => window.clearTimeout(handle))
+    scheduledTimersRef.current.clear()
+    scheduledFramesRef.current.forEach((handle) => window.cancelAnimationFrame?.(handle))
+    scheduledFramesRef.current.clear()
+  }, [])
   // Auto-grow composer textarea to fit content (clamped), reset to single row when cleared.
   const COMPOSER_MAX_H = 160
   useLayoutEffect(() => {
@@ -716,6 +745,7 @@ export default function ChatApp() {
 
   const loadChatState = async (id = '') => {
     const st = await api(id ? `/api/chat/state/${id}` : '/api/chat/state')
+    if (!mountedRef.current) return
     const nextLlms = st.llms || []
     const nextNo = st.settings?.llm_no ?? st.llm_no ?? nextLlms[0]?.index ?? 0
     setLlms(nextLlms)
@@ -732,6 +762,7 @@ export default function ChatApp() {
 
   const openSession = async (id, refreshList = true) => {
     const d = await api(`/api/chat/session/${id}`)
+    if (!mountedRef.current) return
     setSid(d.id)
     setMessages(d.messages || [])
     setLlmNo(d.settings?.llm_no || 0)
@@ -746,6 +777,7 @@ export default function ChatApp() {
   const loadSessions = async (prefer = sid, options = {}) => {
     const { open = false } = options
     const d = await api('/api/chat/sessions')
+    if (!mountedRef.current) return []
     const list = d.sessions || []
     setSessions(list)
     if (open) {
@@ -778,7 +810,7 @@ export default function ChatApp() {
     setMenuPos(null)
     if (id === sid) { setSid(''); setMessages([]) }
     setNotice('会话已删除')
-    setTimeout(() => loadSessions('', { open:true }).catch(()=>{}), 0)
+    scheduleTask(() => loadSessions('', { open:true }).catch(()=>{}), 0)
   }
 
   const startRename = (s) => { setEditing(s.id); setDraftTitle(shortTitle(s)); setMenuOpen(''); setMenuPos(null) }
@@ -887,8 +919,8 @@ export default function ChatApp() {
       const len = value.length
       el.setSelectionRange?.(len, len)
     }
-    requestAnimationFrame(focusPrompt)
-    setTimeout(focusPrompt, 0)
+    scheduleFrame(focusPrompt)
+    scheduleTask(focusPrompt, 0)
   }, [])
 
   const runSend = async (item = {}) => {
@@ -925,7 +957,7 @@ export default function ChatApp() {
       const next = popQueued()
       if (next) {
         setNotice(`继续发送队列消息（剩余 ${Math.max(queuedRef.current.length, 0)} 条）`)
-        setTimeout(() => runSend(next), 0)
+        scheduleTask(() => runSend(next), 0)
       } else {
         setBusy(false)
         setStreamingSid('')
@@ -973,11 +1005,21 @@ export default function ChatApp() {
       setBusy(false)
       setStreamingSid('')
       setNotice('已引导：中止当前回复并发送队列消息')
-      setTimeout(() => runSend(next), 0)
+      scheduleTask(() => runSend(next), 0)
     }
   }
 
-  useEffect(() => { loadSessions('', { open:true }).catch(e=>setErr(e.message)); return () => streamAbortRef.current?.abort?.() }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    loadSessions('', { open:true }).catch(e => {
+      if (mountedRef.current) setErr(e.message)
+    })
+    return () => {
+      mountedRef.current = false
+      streamAbortRef.current?.abort?.()
+      clearScheduledWork()
+    }
+  }, [clearScheduledWork])
 
   const scrollToThreadEnd = (behavior = 'smooth') => endRef.current?.scrollIntoView({ behavior, block:'end' })
   const resumeFollow = () => {
