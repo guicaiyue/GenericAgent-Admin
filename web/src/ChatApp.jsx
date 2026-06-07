@@ -4,6 +4,7 @@ import { useGSAP } from '@gsap/react'
 import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { api, apiStream } from './lib/api'
 import { confirmDanger } from './lib/danger'
+import { copyText } from './lib/format'
 import { chatReturnRoute } from './lib/routing'
 
 gsap.registerPlugin(useGSAP)
@@ -69,17 +70,26 @@ function InlineMarkdown({ text = '' }) {
 }
 
 function CopyButton({ text, compact = false }) {
-  const [ok, setOk] = useState(false)
+  const [state, setState] = useState('idle')
+  const resetTimer = useRef(null)
+  useEffect(() => () => window.clearTimeout(resetTimer.current), [])
   const copy = async (e) => {
     e?.stopPropagation?.()
+    window.clearTimeout(resetTimer.current)
     try {
-      await navigator.clipboard.writeText(text || '')
-      setOk(true)
-      setTimeout(() => setOk(false), 1200)
-    } catch {}
+      const copied = await copyText(text || '')
+      setState(copied ? 'ok' : 'fail')
+    } catch {
+      setState('fail')
+    } finally {
+      resetTimer.current = window.setTimeout(() => setState('idle'), 1200)
+    }
   }
-  return <button className={compact ? 'oa-mini-copy' : 'oa-copy'} onClick={copy} title="复制">
-    {ok ? <Check size={14}/> : <Copy size={14}/>}<span>{ok ? '已复制' : '复制'}</span>
+  const ok = state === 'ok'
+  const fail = state === 'fail'
+  const label = ok ? '已复制' : fail ? '复制失败' : '复制'
+  return <button className={compact ? 'oa-mini-copy' : 'oa-copy'} onClick={copy} title={label} aria-label={label}>
+    {ok ? <Check size={14}/> : <Copy size={14}/>}<span>{label}</span>
   </button>
 }
 

@@ -23,22 +23,45 @@ export const outputLineCount = (text) => {
   return normalized ? normalized.split(/\r?\n/).length : 0
 }
 
-export const copyText = async (text) => {
-  const value = text || ''
-  if (!value) return
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value)
-    return
-  }
+const fallbackCopyText = (value) => {
+  if (typeof document === 'undefined' || !document.execCommand) throw new Error('Clipboard copy is not supported')
   const el = document.createElement('textarea')
+  const selection = document.getSelection?.()
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null
   el.value = value
   el.setAttribute('readonly', '')
   el.style.position = 'fixed'
+  el.style.top = '0'
   el.style.left = '-9999px'
+  el.style.opacity = '0'
   document.body.appendChild(el)
-  el.select()
-  document.execCommand('copy')
-  document.body.removeChild(el)
+  try {
+    el.focus({ preventScroll: true })
+    el.select()
+    const copied = document.execCommand('copy')
+    if (!copied) throw new Error('Clipboard copy failed')
+  } finally {
+    document.body.removeChild(el)
+    if (selection && selectedRange) {
+      selection.removeAllRanges()
+      selection.addRange(selectedRange)
+    }
+  }
+}
+
+export const copyText = async (text) => {
+  const value = text || ''
+  if (!value) return false
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value)
+      return true
+    } catch {
+      // 非安全上下文/权限拒绝时继续尝试传统同步复制，避免按钮静默失效。
+    }
+  }
+  fallbackCopyText(value)
+  return true
 }
 
 const clampPercent = (value) => Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
