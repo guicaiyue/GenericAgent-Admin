@@ -53,7 +53,7 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
       <div className="form-grid compact-form goal-params">
         <label>{t.fields.budgetMinutes}<input type="number" min="1" max="43200" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
         <label>{t.fields.maxTurns}<input type="number" min="0" max="10000" value={maxTurns} onChange={e=>setMaxTurns(e.target.value)}/></label>
-        <label>{t.fields.llmNo}<input type="number" min="0" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
+        <label>{t.fields.llmNo}<input type="number" min="0" max="31" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
       </div>
       <div className="actions goal-start-actions">
         <button className="primary" disabled={busy || !objective.trim()} onClick={onStart}><Play size={14}/>{t.start}</button>
