@@ -340,3 +340,14 @@ MM web/src/style.css
 - Added explicit `output_status` JSON assertions to `internal/api/goals_test.go` for full, tail_truncated, empty_log, and missing_log output cases.
 - Verified with `go test ./internal/api ./internal/ga` (pass).
 - Next: search adjacent Goal Mode API/UX hardening beyond output_status.
+
+
+## 2026-06-08 - Round 2 web UX/a11y and dev-runtime verification
+- Continued GA Admin development-web optimization on branch `feat/llm-start-modal-work`; PR #1 was updated with three pushed commits: `f392937` (SPA pushState route fix), `3d64297` (service-start modal a11y), and `e45b21f` (rebuilt dist asset correction).
+- Fixed the service-start confirmation modal accessibility/keyboard behavior in `web/src/App.jsx`: added `role="dialog"`, `aria-modal`, `aria-labelledby`, focusable panel, initial focus into the LLM selector/panel, Escape close, backdrop click close, and event isolation so panel clicks do not close the modal.
+- Verified build artifacts after Vite hash churn: `web/dist/index.html` now references `assets/index-Dj4RNafE.js`; stale tracked dist assets were removed and the new hash asset was force-added despite dist ignore rules.
+- Development-runtime boundary check: production `8787` stayed isolated (`ga-admin`, pid 1555793, cwd `/vol1/1000/docker/GenericAgent-Admin`), while dev `13838` was restarted through exact dev air PIDs only (`air` pid 2047526, child pid 2047650, config `config.dev.json`).
+- Real browser verification on `http://192.168.1.4:13838/autonomous`: loaded latest `index-Dj4RNafE.js`, no captured console errors, opened the stopped `reflect/agent_team_worker.py` Start modal without confirming service start, confirmed initial focus, Escape close, backdrop close, dialog attributes, and no visible service-state mutation.
+- Risk found and closed: touching Go files did not refresh the dev server because stale child process still owned `13838`; resolved by probing process cwd/cmdline/logs and restarting exact dev air process, not production.
+- Final checks before this note: git branch was clean and synced to `origin/feat/llm-start-modal-work`; 13838 and 8787 listener/cwd/cmdline boundaries were rechecked.
+- Next possible angle: continue from first-user-review perspective on remaining keyboard/focus gaps in other modals or high-risk actions, then repeat real-browser verification on dev `13838`.
