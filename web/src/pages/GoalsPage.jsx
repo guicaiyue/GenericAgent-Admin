@@ -63,7 +63,7 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
 
     {goalTab==='runs' && <Panel title={t.fields.goalRuns} className="goals-list-panel goal-tab-panel">
       <div className="goal-list clean-list goal-list-tabbed">
-        {goalList.length ? goalList.map(g => <GoalRunCard key={g.id} g={g} t={t} selected={selected} onOutput={openOutput} onState={showStatePath} onStop={onStop} onDelete={onDelete}/>) : <p className="muted">{t.empty}</p>}
+        {goalList.length ? goalList.map(g => <GoalRunCard key={g.id} g={g} t={t} selected={selected} onOutput={openOutput} onState={showStatePath} onStop={onStop} onDelete={onDelete}/>) : <p className="muted"><Target size={14} style={{display:'inline',verticalAlign:'middle',marginRight:4}}/>{t.hints?.noGoals || t.empty}</p>}
       </div>
     </Panel>}
 
