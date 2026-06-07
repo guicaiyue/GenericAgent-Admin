@@ -36,6 +36,7 @@ const timelineKey = (v) => {
 }
 const isNearBottom = (el, gap = 96) => !el || (el.scrollHeight - el.scrollTop - el.clientHeight) <= gap
 const shortTitle = (s) => s?.title || '新会话'
+const sessionSummary = (s) => s?.summary || '暂无消息摘要'
 const modelLabel = (m) => m?.label || [m?.name || m?.var_name || `模型 ${m?.index || ''}`, m?.model].filter(Boolean).join(' · ')
 
 const tokenizeInlineMarkdown = (text = '') => {
@@ -1023,8 +1024,10 @@ export default function ChatApp() {
           {editing === s.id ? <div className="oa-rename">
             <input value={draftTitle} autoFocus onChange={e=>setDraftTitle(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') saveRename(s.id); if(e.key==='Escape') setEditing('') }}/>
             <button onClick={()=>saveRename(s.id)}><Check size={14}/></button><button onClick={()=>setEditing('')}><X size={14}/></button>
-          </div> : <button className="oa-session" onClick={()=>openSession(s.id)} title={shortTitle(s)}>
+          </div> : <button className="oa-session" onClick={()=>openSession(s.id)} title={`${shortTitle(s)}
+${sessionSummary(s)}`}>
             <span className="oa-session-title" title={shortTitle(s)}>{s.running && <i className="oa-session-running-dot" aria-hidden="true"/>}<b>{shortTitle(s)}</b></span>
+            <span className="oa-session-summary" title={sessionSummary(s)}>{sessionSummary(s)}</span>
             <small><Clock3 size={11}/>{fmtTime(s.updated_at) || '刚刚'} · {s.count || 0} 条{s.running && <em className="oa-session-running-label">运行中</em>}</small>
           </button>}
           {editing !== s.id && <button className={`oa-session-more ${menuOpen === s.id ? 'is-open' : ''}`} onClick={(e)=>{

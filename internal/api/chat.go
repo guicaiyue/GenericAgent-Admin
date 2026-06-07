@@ -42,6 +42,23 @@ type chatSession struct {
 	Settings  chatSettings  `json:"settings"`
 }
 
+func chatSessionSummary(cs chatSession) string {
+	for i := len(cs.Messages) - 1; i >= 0; i-- {
+		m := cs.Messages[i]
+		if m.Error || strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		text := strings.Join(strings.Fields(m.Content), " ")
+		if len([]rune(text)) > 88 {
+			text = string([]rune(text)[:88]) + "…"
+		}
+		if text != "" {
+			return text
+		}
+	}
+	return "暂无消息摘要"
+}
+
 const (
 	maxChatUploadFiles        = 8
 	maxChatUploadBytesPerFile = 20 << 20

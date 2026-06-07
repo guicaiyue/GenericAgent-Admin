@@ -46,16 +46,18 @@ export function ChatPage({ t }) {
   }
   const retry = () => { if (lastPrompt) { setPrompt(lastPrompt); setLastPrompt('') } }
   const filtered = q ? messages.filter(m => m.content && m.content.toLowerCase().includes(q.toLowerCase())) : messages
-  const filteredSessions = sq ? sessions.filter(s => (s.name || s.id || '').toLowerCase().includes(sq.toLowerCase())) : sessions
+  const sessionTitle = (s) => s.title || s.name || s.id?.slice(0,12) || '会话'
+  const sessionSummary = (s) => s.summary || '暂无消息摘要'
+  const filteredSessions = sq ? sessions.filter(s => `${sessionTitle(s)} ${sessionSummary(s)} ${s.id || ''}`.toLowerCase().includes(sq.toLowerCase())) : sessions
   const copyMessage = async (text) => { try { await copyText(text); setErr('已复制'); setTimeout(()=>setErr(''), 2000) } catch(e) {} }
-  const sessionTitle = (s) => s.name || s.id?.slice(0,12) || '会话'
   return <section className={`chat-page ${sessions.length ? '' : 'no-sidebar'}`}>
   {sessions.length > 0 && <aside className="chat-sidebar">
     <div className="chat-sidebar-search"><Search size={12}/><input value={sq} onChange={e=>setSq(e.target.value)} placeholder="搜索会话..."/></div>
     <div className="chat-session-list">
       {filteredSessions.length === 0 && <p className="muted" style={{fontSize:'11px',padding:'8px'}}>无匹配会话</p>}
-      {filteredSessions.map(s => <button key={s.id} className={`chat-session-item ${s.id===sid?'active':''}`} onClick={()=>openSession(s.id)} title={sessionTitle(s)}>
-        <MessageSquare size={11}/><span>{sessionTitle(s)}</span></button>)}
+      {filteredSessions.map(s => <button key={s.id} className={`chat-session-item ${s.id===sid?'active':''}`} onClick={()=>openSession(s.id)} title={`${sessionTitle(s)}
+${sessionSummary(s)}`}>
+        <MessageSquare size={13}/><span><b>{sessionTitle(s)}</b><em>{sessionSummary(s)}</em></span></button>)}
     </div>
   </aside>}
   <div className="chat-main">
