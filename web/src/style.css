@@ -3142,6 +3142,15 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255
 }
 .theme-toggle:hover { color: var(--text); border-color: var(--border-strong); }
 .theme-toggle svg { display: block; }
+.theme-shortcut {
+  margin-left: 2px; padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255,255,255,.55);
+  font: inherit; font-size: 11px; line-height: 1;
+}
+html[data-theme="dark"] .theme-shortcut { background: rgba(255,255,255,.08); }
 
 /* ------------------------------------------------------------
    Dark theme — semantic status colours.
