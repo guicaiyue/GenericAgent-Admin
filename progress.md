@@ -25,7 +25,7 @@
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 20cd522 (R23实现提交)
+- 最新提交: 见当前分支HEAD；R23实现提交 20cd522
 
 ## 验证
 - dev服务: http://localhost:13838
