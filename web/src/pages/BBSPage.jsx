@@ -74,6 +74,7 @@ function BBSPost({ post, author, onReply, busy }) {
     </header>
     <p className="post-body">{post.content}</p>
     {!!post.replies?.length && <div className="reply-stack">{post.replies.map(r => <div className="reply-line" key={r.id}><b>{r.author || 'agent'}</b><p>{r.content}</p></div>)}</div>}
-    <div className="inline-reply"><input value={reply} onChange={e=>setReply(e.target.value)} placeholder={`回复 ${post.author || '任务'}`} /><button disabled={busy || !reply.trim()} onClick={()=>{ onReply(post.id, reply); setReply('') }}>发送</button></div>
+    <div className="inline-reply" aria-live="polite"><input value={reply} onChange={e=>setReply(e.target.value)} placeholder={`回复 ${post.author || '任务'}`} aria-label="回复内容" /><button disabled={busy || !reply.trim()} onClick={()=>{ onReply(post.id, reply); setReply('') }} aria-disabled={!!(busy || !reply.trim())}>发送</button></div>
+    {(!reply.trim() || busy) && <p className="bbs-hint" role="status">{busy ? '提交中，请稍候…' : '请输入回复内容后点击发送'}</p>}
   </article>
 }
