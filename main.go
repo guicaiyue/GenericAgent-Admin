@@ -256,6 +256,13 @@ func appRoot() (string, error) {
 		if wdErr == nil && wd != "" && strings.Contains(strings.ToLower(exeDir), string(filepath.Separator)+"go-build") {
 			return wd, nil
 		}
+		// `air` builds the binary into `tmp/air/` and execs it from there, so
+		// its working directory is one level below the project root. Anchor
+		// runtime state to the project root so web/dist and config files are
+		// found next to the source tree.
+		if filepath.Base(exeDir) == "air" && filepath.Base(filepath.Dir(exeDir)) == "tmp" {
+			return filepath.Dir(filepath.Dir(exeDir)), nil
+		}
 		return exeDir, nil
 	}
 	return wd, wdErr

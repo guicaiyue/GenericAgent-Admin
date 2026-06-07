@@ -168,9 +168,14 @@ export default function App() {
   }
 
   const loadBBS = async () => {
-    const [status, cfg, posts] = await Promise.all([api('/api/bbs/status'), api('/api/bbs/config'), api('/api/bbs/posts?limit=100')])
-    setBbsStatus(status); setBbsConfig({ mode: cfg.mode || 'builtin', base_url: cfg.base_url || '', board_key: cfg.board_key || 'ga-team', builtin_base_url: cfg.builtin_base_url || status?.builtin_base_url || status?.base_url || '' }); setBbsPosts(Array.isArray(posts) ? posts : [])
-    return { status, cfg, posts }
+    try {
+      const [status, cfg, posts] = await Promise.all([api('/api/bbs/status'), api('/api/bbs/config'), api('/api/bbs/posts?limit=100')])
+      setBbsStatus(status); setBbsConfig({ mode: cfg.mode || 'builtin', base_url: cfg.base_url || '', board_key: cfg.board_key || 'ga-team', builtin_base_url: cfg.builtin_base_url || status?.builtin_base_url || status?.base_url || '' }); setBbsPosts(Array.isArray(posts) ? posts : [])
+      return { status, cfg, posts }
+    } catch (e) {
+      setMsg(`读取 BBS 状态失败：${e.message}`)
+      return { status: null, cfg: null, posts: [] }
+    }
   }
   const saveBBSConfig = async (next = bbsConfig) => {
     setBusy(true); setMsg('')
@@ -271,10 +276,16 @@ export default function App() {
   const installGA = async () => { setBusy(true); try { const env = setupEnv || await api('/api/setup/env'); setSetupEnv(env); if (!env.ok) throw new Error(t.envMissing); const d = await api('/api/setup/install', { dangerous:true, method:'POST', body: JSON.stringify({ path: installRoot || root }) }); setRoot(d.root); setMsg(t.installDone); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const serviceAction = async (name, action) => { if (action === 'stop' && !confirmDanger('service-stop', `停止服务 ${name}？当前运行进程会被终止。`)) return; setBusy(true); try { await api(`/api/services/${action}`, { dangerous:true, method:'POST', body: JSON.stringify({ name }) }); await load(); if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const loadGAServiceLLMs = async () => {
-    const d = await api('/api/ga/llms')
-    const llms = Array.isArray(d.llms) ? d.llms : []
-    setGaLLMs(llms)
-    return llms
+    try {
+      const d = await api('/api/ga/llms')
+      const llms = Array.isArray(d.llms) ? d.llms : []
+      setGaLLMs(llms)
+      return llms
+    } catch (e) {
+      setMsg(`读取 GA 模型列表失败：${e.message}`)
+      setGaLLMs([])
+      return []
+    }
   }
   const openServiceStartDialog = async (svc) => {
     setMsg('')
@@ -320,7 +331,18 @@ export default function App() {
     if (preferred && items.some(g => g.id === preferred)) return preferred
     return items.find(g => g.running)?.id || items[0]?.id || ''
   }
-  const loadGoals = async () => { const d = await api('/api/goals/list'); const items = d.goals || []; setGoals(items); return items }
+  const loadGoals = async () => {
+    try {
+      const d = await api('/api/goals/list')
+      const items = d.goals || []
+      setGoals(items)
+      return items
+    } catch (e) {
+      setMsg(`读取目标列表失败：${e.message}`)
+      setGoals([])
+      return []
+    }
+  }
   const startGoal = async () => {
     setBusy(true); setMsg('')
     try {
@@ -440,10 +462,15 @@ export default function App() {
 
 
   const refreshVersionStatus = async () => {
-    const d = await api('/api/version/status')
-    setVersionStatus(d)
-    if (d?.check) setVersionCheck(d.check)
-    return d
+    try {
+      const d = await api('/api/version/status')
+      setVersionStatus(d)
+      if (d?.check) setVersionCheck(d.check)
+      return d
+    } catch (e) {
+      setVersionStatus(prev => ({ ...(prev || {}), error: e.message }))
+      return null
+    }
   }
   useEffect(() => {
     let stop = false
