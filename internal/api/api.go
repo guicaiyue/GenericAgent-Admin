@@ -64,6 +64,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/ga/inventory", s.gaInventory)
 	mux.HandleFunc("/api/ga/health", s.gaHealth)
 	mux.HandleFunc("/api/ga/control", s.gaControl)
+	mux.HandleFunc("/api/ga/llms", s.gaLLMs)
 	mux.HandleFunc("/api/ga/git-update", s.requireDangerousConfirm(s.gaGitUpdate))
 	mux.HandleFunc("/api/ga/git-status", s.gaGitStatus)
 	mux.HandleFunc("/api/ga/git-mirror", s.requireDangerousConfirm(s.gitMirrorConfig))

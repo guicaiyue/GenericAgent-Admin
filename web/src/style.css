@@ -3181,3 +3181,29 @@ html[data-theme="dark"] .goal-tabs button.active { color: var(--ink-link) !impor
 .oa-composer:focus-within .oa-send:not(:disabled):hover {
   background: #0e906f !important;
 }
+
+.service-start-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(20, 20, 20, .28);
+  backdrop-filter: blur(8px);
+}
+.service-start-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 24px 70px rgba(0,0,0,.18);
+}
+.service-start-panel h3 { margin: 0; letter-spacing: -0.035em; }
+.service-start-panel label { display: grid; gap: 7px; font-size: 13px; color: var(--muted); }
+.service-start-panel select { min-height: 38px; width: 100%; }
+.service-start-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
