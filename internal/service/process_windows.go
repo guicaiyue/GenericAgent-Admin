@@ -21,6 +21,7 @@ func hideChildWindow(cmd *exec.Cmd) {
 type processRow struct {
 	pid         int
 	commandLine string
+	workingDir  string
 }
 
 func (m *Manager) stopConflictingService(s ServiceInfo) ([]int, error) {
@@ -40,7 +41,7 @@ func (m *Manager) stopConflictingService(s ServiceInfo) ([]int, error) {
 		if row.pid <= 0 || row.pid == self {
 			continue
 		}
-		if !commandLineMatchesService(row.commandLine, m.GARoot, s.Command) {
+		if !commandLineMatchesService(row.commandLine, row.workingDir, m.GARoot, s.Command) {
 			continue
 		}
 		p, err := os.FindProcess(row.pid)
@@ -85,17 +86,21 @@ func listPythonProcesses() ([]processRow, error) {
 	return rows, nil
 }
 
-func commandLineMatchesService(commandLine, gaRoot string, serviceCommand []string) bool {
+func commandLineMatchesService(commandLine, workingDir, gaRoot string, serviceCommand []string) bool {
 	if len(serviceCommand) < 2 {
 		return false
 	}
 	cmd := strings.ToLower(normalizePathText(commandLine))
 	root := strings.ToLower(normalizePathText(filepath.Clean(gaRoot)))
+	cwd := strings.ToLower(normalizePathText(filepath.Clean(workingDir)))
 	py := strings.ToLower(normalizePathText(filepath.Clean(serviceCommand[0])))
+	inGARoot := cwd == root
 
-	// Require either the configured GA python executable or the GA root path to avoid
-	// killing unrelated python processes that happen to use the same script name.
-	if !strings.Contains(cmd, py) && !strings.Contains(cmd, root) {
+	// Require either the configured GA python executable, the GA root path in the
+	// command line, or cwd equal to GA root. The cwd exception lets Admin recognize
+	// existing services started as relative commands from the GA root without also
+	// matching unrelated python processes in other directories.
+	if !strings.Contains(cmd, py) && !strings.Contains(cmd, root) && !inGARoot {
 		return false
 	}
 

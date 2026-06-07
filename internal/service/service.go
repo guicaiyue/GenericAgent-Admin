@@ -100,7 +100,7 @@ func (m *Manager) Discover() []ServiceInfo {
 	m.addIfExists(&out, "hub.pyw", "core", []string{py, "hub.pyw"})
 	m.addIfExists(&out, "launch.py", "core", []string{py, "launch.py"})
 	m.addIfExists(&out, "agent_loop.py", "core", []string{py, "agent_loop.py"})
-	m.addIfExists(&out, filepath.Join("reflect", "scheduler.py"), "task", []string{py, filepath.ToSlash(filepath.Join("reflect", "scheduler.py"))})
+	m.addIfExists(&out, filepath.Join("reflect", "scheduler.py"), "reflect", []string{py, "agentmain.py", "--reflect", filepath.ToSlash(filepath.Join("reflect", "scheduler.py"))})
 	m.addIfExists(&out, filepath.Join("reflect", "autonomous.py"), "reflect", []string{py, "agentmain.py", "--reflect", filepath.ToSlash(filepath.Join("reflect", "autonomous.py"))})
 	m.addIfExists(&out, filepath.Join("reflect", "goal_mode.py"), "reflect", []string{py, "agentmain.py", "--reflect", filepath.ToSlash(filepath.Join("reflect", "goal_mode.py"))})
 
@@ -149,7 +149,6 @@ func (m *Manager) Discover() []ServiceInfo {
 
 func (m *Manager) withState(s ServiceInfo) ServiceInfo {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if p, ok := m.procs[s.Name]; ok {
 		if p.cmd.Process != nil && p.ret == nil {
 			pid := p.cmd.Process.Pid
@@ -166,7 +165,33 @@ func (m *Manager) withState(s ServiceInfo) ServiceInfo {
 			s.ReturnCode = p.ret
 		}
 	}
+	m.mu.Unlock()
+	if s.Running {
+		return s
+	}
+	if pid := m.externalPID(s); pid != nil {
+		s.PID = pid
+		s.Running = true
+	}
 	return s
+}
+
+func (m *Manager) externalPID(s ServiceInfo) *int {
+	rows, err := listPythonProcesses()
+	if err != nil {
+		return nil
+	}
+	self := os.Getpid()
+	for _, row := range rows {
+		if row.pid <= 0 || row.pid == self {
+			continue
+		}
+		if commandLineMatchesService(row.commandLine, row.workingDir, m.GARoot, s.Command) {
+			pid := row.pid
+			return &pid
+		}
+	}
+	return nil
 }
 
 func (m *Manager) Find(name string) (ServiceInfo, bool) {

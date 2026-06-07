@@ -34,6 +34,40 @@ func TestDiscoverExcludesGoalModeFromGenericReflectList(t *testing.T) {
 	}
 }
 
+func TestDiscoverSchedulerUsesReflectEntrypoint(t *testing.T) {
+	root := t.TempDir()
+	reflectDir := filepath.Join(root, "reflect")
+	if err := os.MkdirAll(reflectDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(reflectDir, "scheduler.py"), []byte("# test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	items := NewManager(root, 100).Discover()
+	seen := map[string]ServiceInfo{}
+	for _, item := range items {
+		seen[item.Name] = item
+	}
+	rel := filepath.ToSlash(filepath.Join("reflect", "scheduler.py"))
+	item, ok := seen[rel]
+	if !ok {
+		t.Fatalf("missing scheduler service in %#v", items)
+	}
+	if item.Kind != "reflect" {
+		t.Fatalf("scheduler kind=%s", item.Kind)
+	}
+	want := []string{"python", "agentmain.py", "--reflect", rel}
+	if len(item.Command) != len(want) {
+		t.Fatalf("scheduler command=%#v want %#v", item.Command, want)
+	}
+	for i := range want {
+		if item.Command[i] != want[i] {
+			t.Fatalf("scheduler command[%d]=%q want %q in %#v", i, item.Command[i], want[i], item.Command)
+		}
+	}
+}
+
 func TestDiscoverIncludesChannelFrontendApps(t *testing.T) {
 	root := t.TempDir()
 	frontendsDir := filepath.Join(root, "frontends")
@@ -78,22 +112,30 @@ func TestCommandLineMatchesServiceRequiresExactScriptPath(t *testing.T) {
 	cmd := []string{py, filepath.ToSlash(filepath.Join("reflect", "custom_reflect.py"))}
 
 	ownAbs := py + " " + filepath.Join(root, "reflect", "custom_reflect.py")
-	if !commandLineMatchesService(ownAbs, root, cmd) {
+	if !commandLineMatchesService(ownAbs, "", root, cmd) {
 		t.Fatalf("expected absolute GA script command to match")
 	}
 
 	ownRel := py + " reflect/custom_reflect.py"
-	if !commandLineMatchesService(ownRel, root, cmd) {
+	if !commandLineMatchesService(ownRel, "", root, cmd) {
 		t.Fatalf("expected relative GA script command to match")
 	}
 
+	relFromRoot := "python agentmain.py --reflect reflect/custom_reflect.py"
+	if !commandLineMatchesService(relFromRoot, root, root, []string{py, "agentmain.py", "--reflect", "reflect/custom_reflect.py"}) {
+		t.Fatalf("expected relative command from GA root to match")
+	}
+	if commandLineMatchesService(relFromRoot, filepath.Dir(root), root, []string{py, "agentmain.py", "--reflect", "reflect/custom_reflect.py"}) {
+		t.Fatalf("relative command outside GA root must not match")
+	}
+
 	otherSameBase := py + " " + filepath.Join(filepath.Dir(root), "other-root", "reflect", "custom_reflect.py")
-	if commandLineMatchesService(otherSameBase, root, cmd) {
+	if commandLineMatchesService(otherSameBase, "", root, cmd) {
 		t.Fatalf("same basename under another root must not match")
 	}
 
 	otherSimilarRel := py + " other/reflect/custom_reflect.py"
-	if commandLineMatchesService(otherSimilarRel, root, cmd) {
+	if commandLineMatchesService(otherSimilarRel, "", root, cmd) {
 		t.Fatalf("relative path with extra prefix must not match")
 	}
 }
