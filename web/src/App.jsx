@@ -243,6 +243,7 @@ export default function App() {
     }
   }, [])
   const navigateTo = (nextTab, nextTaskSubTab = taskSubTab, opts = {}) => {
+    window.scrollTo(0, 0)
     const safeTaskSubTab = nextTab === 'tasks' ? nextTaskSubTab : 'services'
     if (nextTab === 'chat') {
       const returnRoute = currentRoute()
