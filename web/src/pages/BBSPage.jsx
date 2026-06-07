@@ -53,7 +53,7 @@ export function BBSPage({ status, config, setConfig, onSaveConfig, posts = [], t
         </div>
         <div className="bbs-config-grid">
           <label><span>内置地址</span><input value={status?.builtin_base_url || config?.builtin_base_url || status?.base_url || ''} readOnly /></label>
-          <label><span>外置地址</span><input value={config?.base_url || ''} onChange={e=>patchConfig({ base_url:e.target.value })} placeholder="http://host:8787" disabled={mode !== 'external'} /></label>
+          <label><span>外置地址</span><input type="url" pattern="https?://.+" title="必须以 http:// 或 https:// 开头" value={config?.base_url || ''} onChange={e=>patchConfig({ base_url:e.target.value })} placeholder="http://host:8787" disabled={mode !== 'external'} /></label>
           <label><span>Board Key</span><input value={config?.board_key || ''} onChange={e=>patchConfig({ board_key:e.target.value })} placeholder="ga-team" /></label>
           <label><span>当前接入</span><input value={activeBase || '-'} readOnly /></label>
         </div>
