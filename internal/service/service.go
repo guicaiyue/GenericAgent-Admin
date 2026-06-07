@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -177,10 +178,37 @@ func (m *Manager) Find(name string) (ServiceInfo, bool) {
 	return ServiceInfo{}, false
 }
 
+func commandWithLLMNo(command []string, llmNo int) []string {
+	out := append([]string{}, command...)
+	for i := 0; i < len(out); i++ {
+		if out[i] == "--llm_no" {
+			if i+1 < len(out) {
+				out[i+1] = strconv.Itoa(llmNo)
+				return out
+			}
+			break
+		}
+	}
+	return append(out, "--llm_no", strconv.Itoa(llmNo))
+}
+
 func (m *Manager) Start(name string) (ServiceInfo, error) {
+	return m.StartWithLLM(name, nil)
+}
+
+func (m *Manager) StartWithLLM(name string, llmNo *int) (ServiceInfo, error) {
 	s, ok := m.Find(name)
 	if !ok {
 		return s, errors.New("service not found")
+	}
+	if llmNo != nil {
+		if *llmNo < 0 {
+			return s, errors.New("llm_no must be non-negative")
+		}
+		if s.Kind != "reflect" {
+			return s, errors.New("llm_no is only supported for reflect services")
+		}
+		s.Command = commandWithLLMNo(s.Command, *llmNo)
 	}
 	m.mu.Lock()
 	if p, ok := m.procs[name]; ok && p.cmd.Process != nil && p.ret == nil {

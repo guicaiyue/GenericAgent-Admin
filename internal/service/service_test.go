@@ -97,3 +97,56 @@ func TestCommandLineMatchesServiceRequiresExactScriptPath(t *testing.T) {
 		t.Fatalf("relative path with extra prefix must not match")
 	}
 }
+
+func TestCommandWithLLMNoAppendsOrReplacesWithoutMutatingOriginal(t *testing.T) {
+	base := []string{"python", "agentmain.py", "--reflect", "reflect/autonomous.py"}
+	withLLM := commandWithLLMNo(base, 2)
+	want := []string{"python", "agentmain.py", "--reflect", "reflect/autonomous.py", "--llm_no", "2"}
+	if len(withLLM) != len(want) {
+		t.Fatalf("command length=%d want=%d: %#v", len(withLLM), len(want), withLLM)
+	}
+	for i := range want {
+		if withLLM[i] != want[i] {
+			t.Fatalf("command[%d]=%q want %q in %#v", i, withLLM[i], want[i], withLLM)
+		}
+	}
+	if len(base) != 4 {
+		t.Fatalf("base command mutated: %#v", base)
+	}
+
+	existing := []string{"python", "agentmain.py", "--reflect", "reflect/autonomous.py", "--llm_no", "1"}
+	replaced := commandWithLLMNo(existing, 3)
+	if replaced[len(replaced)-1] != "3" {
+		t.Fatalf("existing llm_no was not replaced: %#v", replaced)
+	}
+	if existing[len(existing)-1] != "1" {
+		t.Fatalf("existing command mutated: %#v", existing)
+	}
+}
+
+func TestStartWithLLMRejectsInvalidOverridesBeforeStarting(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "reflect"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "reflect", "autonomous.py"), []byte("# test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	frontendsDir := filepath.Join(root, "frontends")
+	if err := os.MkdirAll(frontendsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(frontendsDir, "fsapp.py"), []byte("# test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewManager(root, 100)
+	negative := -1
+	if _, err := m.StartWithLLM(filepath.ToSlash(filepath.Join("reflect", "autonomous.py")), &negative); err == nil || err.Error() != "llm_no must be non-negative" {
+		t.Fatalf("negative llm_no err=%v", err)
+	}
+	llm := 2
+	if _, err := m.StartWithLLM(filepath.ToSlash(filepath.Join("frontends", "fsapp.py")), &llm); err == nil || err.Error() != "llm_no is only supported for reflect services" {
+		t.Fatalf("frontend llm_no err=%v", err)
+	}
+}

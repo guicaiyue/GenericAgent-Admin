@@ -105,8 +105,9 @@ func Default() AppConfig {
 }
 
 type Store struct {
-	Root string
-	Cfg  AppConfig
+	Root       string
+	ConfigPath string
+	Cfg        AppConfig
 }
 
 func NewStore(root string) *Store {
@@ -115,11 +116,19 @@ func NewStore(root string) *Store {
 	return s
 }
 
-func (s *Store) path() string { return filepath.Join(s.Root, "config.local.json") }
+func (s *Store) path() string {
+	if strings.TrimSpace(s.ConfigPath) != "" {
+		return s.ConfigPath
+	}
+	return filepath.Join(s.Root, "config.local.json")
+}
 
 func (s *Store) Load() error {
 	data, err := os.ReadFile(s.path())
 	if err != nil {
+		if strings.TrimSpace(s.ConfigPath) != "" {
+			return err
+		}
 		return nil
 	}
 	cfg := Default()

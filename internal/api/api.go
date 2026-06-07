@@ -106,7 +106,6 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/goals/stop", s.requireDangerousConfirm(s.goalsStop))
 	mux.HandleFunc("/api/goals/delete", s.requireDangerousConfirm(s.goalsDelete))
 	mux.HandleFunc("/api/goals/output", s.goalsOutput)
-	mux.HandleFunc("/api/autonomous/start", s.requireDangerousConfirm(s.autonomousStart))
 	mux.HandleFunc("/api/config", s.requireDangerousConfirm(s.configHandler))
 	mux.HandleFunc("/api/setup/env", s.setupEnv)
 	mux.HandleFunc("/api/setup/browse", s.setupBrowse)
@@ -181,7 +180,6 @@ var riskCatalogItems = []riskCatalogItem{
 	{Path: "/api/goals/start", Level: "dangerous", Action: "start_goal", Reason: "starts autonomous GA goal process"},
 	{Path: "/api/goals/stop", Level: "dangerous", Action: "stop_goal", Reason: "stops autonomous GA goal process by recorded PID"},
 	{Path: "/api/goals/delete", Level: "dangerous", Action: "delete_goal", Reason: "deletes goal state/output files"},
-	{Path: "/api/autonomous/start", Level: "dangerous", Action: "start_autonomous", Reason: "starts autonomous reflect with llm_no override"},
 	{Path: "/api/models/export", Level: "dangerous", Action: "export_models", Reason: "writes active GA model configuration"},
 	{Path: "/api/channels", Level: "dangerous", Action: "edit_channel_secrets", Reason: "writes GA Admin channel credentials to GA root mykey.py"},
 	{Path: "/api/hatch-pet/export", Level: "dangerous", Action: "export_hatch_pet", Reason: "writes embedded hatch-pet toolchain files to the configured GA tools directory"},

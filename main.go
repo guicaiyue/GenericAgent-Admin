@@ -37,7 +37,12 @@ func main() {
 		log.Fatalf("chdir %s failed: %v", cwd, err)
 	}
 	cfgStore := config.NewStore(cwd)
-	if err := cfgStore.Load(); err != nil {
+	if strings.TrimSpace(launch.ConfigPath) != "" {
+		cfgStore.ConfigPath = launch.ConfigPath
+		if err := cfgStore.Load(); err != nil {
+			log.Fatalf("load config %s: %v", launch.ConfigPath, err)
+		}
+	} else if err := cfgStore.Load(); err != nil {
 		log.Printf("load config: %v", err)
 	}
 	svc := service.NewManager(cfgStore.Cfg.GARoot, cfgStore.Cfg.BufferLines)
@@ -100,14 +105,16 @@ func main() {
 }
 
 type launchOptions struct {
-	Headless  bool
-	NoBrowser bool
+	Headless   bool
+	NoBrowser  bool
+	ConfigPath string
 }
 
 func parseLaunchOptions() launchOptions {
 	headlessFlag := flag.Bool("headless", false, "run without browser, tray, or desktop pet; intended for Linux servers")
 	serverOnlyFlag := flag.Bool("server-only", false, "alias for --headless")
 	noBrowserFlag := flag.Bool("no-browser", false, "do not open the web UI automatically")
+	configFlag := flag.String("config", "", "path to config JSON file; defaults to config.local.json in the app root")
 	flag.Parse()
 
 	headless := *headlessFlag || *serverOnlyFlag || envBool("GA_ADMIN_HEADLESS") || envBool("GA_ADMIN_SERVER_ONLY")
@@ -116,8 +123,9 @@ func parseLaunchOptions() launchOptions {
 		log.Printf("no Linux graphical session detected; enabling headless/server-only mode")
 	}
 	return launchOptions{
-		Headless:  headless,
-		NoBrowser: *noBrowserFlag || envBool("GA_ADMIN_NO_BROWSER"),
+		Headless:   headless,
+		NoBrowser:  *noBrowserFlag || envBool("GA_ADMIN_NO_BROWSER"),
+		ConfigPath: strings.TrimSpace(*configFlag),
 	}
 }
 

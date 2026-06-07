@@ -44,13 +44,7 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, err.Error())
 		return
 	}
-	var svc interface{}
-	var err error
-	if q.LLMNo != nil {
-		svc, err = s.Svc.StartWithLLM(q.Name, q.LLMNo)
-	} else {
-		svc, err = s.Svc.Start(q.Name)
-	}
+	svc, err := s.Svc.StartWithLLM(q.Name, q.LLMNo)
 	if err != nil {
 		s.NotifyPetEvent("service:error")
 		bad(w, 404, err.Error())
