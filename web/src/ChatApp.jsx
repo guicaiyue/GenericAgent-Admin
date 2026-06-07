@@ -4,6 +4,7 @@ import { useGSAP } from '@gsap/react'
 import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { api, apiStream } from './lib/api'
 import { confirmDanger } from './lib/danger'
+import { chatReturnRoute } from './lib/routing'
 
 gsap.registerPlugin(useGSAP)
 
@@ -1037,7 +1038,7 @@ export default function ChatApp() {
       })()}
       <div className="oa-sidebar-foot">
         <button onClick={()=>loadSessions().catch(e=>setErr(e.message))}><RefreshCw size={15}/>刷新会话</button>
-        <button onClick={()=>window.location.href='/'}><ChevronLeft size={15}/>返回管理台</button>
+        <button onClick={()=>{ window.location.href = chatReturnRoute() }}><ChevronLeft size={15}/>返回管理台</button>
       </div>
     </aside>
 

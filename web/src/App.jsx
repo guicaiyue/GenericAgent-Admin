@@ -4,7 +4,7 @@ import { useGSAP } from '@gsap/react'
 import { Activity, Bot, Brain, CalendarClock, CheckCircle2, Copy, Eye, FileCode2, FolderCog, Globe2, GitPullRequest, Heart, MessageSquare, Play, RefreshCw, Save, Server, ShieldAlert, Power, SlidersHorizontal, Square, Target, Terminal, Trash2, UploadCloud, Users, XCircle, Download, Moon, Sun } from 'lucide-react'
 import { api } from './lib/api'
 import { confirmDanger } from './lib/danger'
-import { NAV_ITEMS, TASK_SUB_TABS, parseRoute, buildRoute } from './lib/routing'
+import { NAV_ITEMS, TASK_SUB_TABS, parseRoute, buildRoute, buildChatRoute, currentRoute } from './lib/routing'
 import { emptyProfile, formatBytes, formatDuration, formatGoalTime, group, outputLineCount, safeJson } from './lib/format'
 import { ChannelServiceTable, EntryList, Panel, SecretInput, ServiceRow, Stat } from './components/common'
 import { TurnList } from './components/turns'
@@ -239,6 +239,12 @@ export default function App() {
   }, [])
   const navigateTo = (nextTab, nextTaskSubTab = taskSubTab, opts = {}) => {
     const safeTaskSubTab = nextTab === 'tasks' ? nextTaskSubTab : 'services'
+    if (nextTab === 'chat') {
+      const returnRoute = currentRoute()
+      try { window.sessionStorage?.setItem('ga-admin-chat-return', returnRoute) } catch (_) {}
+      window.location.href = buildChatRoute(returnRoute)
+      return
+    }
     const next = buildRoute(nextTab, safeTaskSubTab)
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
     if (current !== next) window.history[opts.replace ? 'replaceState' : 'pushState'](null, '', next)
