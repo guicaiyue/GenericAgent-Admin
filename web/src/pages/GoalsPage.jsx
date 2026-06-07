@@ -56,7 +56,7 @@ export function GoalsPage({ t, goals, objective, setObjective, budget, setBudget
         <label>{t.fields.llmNo}<input type="number" min="0" max="31" value={llmNo} onChange={e=>setLLMNo(e.target.value)} placeholder="0"/></label>
       </div>
       <div className="actions goal-start-actions">
-        <button className="primary" disabled={busy || !objective.trim()} onClick={onStart}><Play size={14}/>{t.start}</button>
+        <button className="primary" disabled={busy || !objective.trim()} onClick={() => { if (window.confirm(`确认启动目标？\n\n目标内容：${objective.trim().slice(0, 60)}${objective.length > 60 ? '…' : ''}\n\n最大轮数：${maxTurns || 0}，预算：${budget} 分钟`)) onStart() }}><Play size={14}/>{t.start}</button>
         <button disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{t.refresh}</button>
       </div>
     </Panel>}
