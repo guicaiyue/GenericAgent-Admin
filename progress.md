@@ -25,11 +25,12 @@
 | 25 | 920adb2 | Chat会话列表摘要(summary)字段+主/简版入口两行预览与摘要搜索 |
 | 26 | 8f25cd0 | 简版ChatPage会话删除按钮+确认弹窗+非嵌套行布局 |
 | 27 | 76371cc | 主题切换按钮Alt+T快捷键+可访问状态提示+可视快捷键胶囊 |
+| 28 | 7acb728 | BBS回帖无障碍化：aria-label+aria-live+aria-disabled+显式提示+bbs-hint样式 |
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 见当前分支HEAD；R25实现提交 920adb2；R26实现提交 8f25cd0；R27实现提交 76371cc
+- 最新提交: 见当前分支HEAD；R25实现提交 920adb2；R26实现提交 8f25cd0；R28实现提交 7acb728; R27实现提交 76371cc
 
 ## 验证
 - dev服务: http://localhost:13838
@@ -39,6 +40,7 @@
 - R25验证: `go test ./internal/api` 成功；`cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 - R26验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 - R27验证: 源码断言确认Alt+T监听/input保护/aria-label/title/kbd提示；`cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
+- R28验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 
 ## 下轮候选角度
 1. API超时提示/重试按钮
