@@ -30,7 +30,8 @@ func (s *Server) servicesWithAutostart() []service.ServiceInfo {
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.Svc.Summary()) }
 
 type nameReq struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	LLMNo *int   `json:"llm_no"`
 }
 
 func (s *Server) start(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,13 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, err.Error())
 		return
 	}
-	svc, err := s.Svc.Start(q.Name)
+	var svc interface{}
+	var err error
+	if q.LLMNo != nil {
+		svc, err = s.Svc.StartWithLLM(q.Name, q.LLMNo)
+	} else {
+		svc, err = s.Svc.Start(q.Name)
+	}
 	if err != nil {
 		s.NotifyPetEvent("service:error")
 		bad(w, 404, err.Error())

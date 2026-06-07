@@ -182,6 +182,19 @@ func (s *Server) chatSaveSettings(w http.ResponseWriter, r *http.Request, sid st
 	writeJSON(w, map[string]interface{}{"ok": true, "settings": st})
 }
 
+func (s *Server) gaLLMs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	llms, err := s.listGARuntimeLLMs(s.CfgStore.Cfg.GARoot)
+	backend := map[string]string{"class": "GenericAgent worker", "source": "agentmain.GenericAgent.list_llms"}
+	if err != nil {
+		backend["warning"] = err.Error()
+	}
+	writeJSON(w, map[string]interface{}{"llms": llms, "backend": backend})
+}
+
 func (s *Server) chatState(w http.ResponseWriter, r *http.Request, sid string) {
 	cs, err := loadChatSession(s.CfgStore.Cfg, safeChatID(sid))
 	if err != nil {

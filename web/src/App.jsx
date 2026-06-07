@@ -72,6 +72,8 @@ export default function App() {
   const [taskSubTab, setTaskSubTab] = useState(initialRoute.taskSubTab)
   const [scheduleArtifactTitle, setScheduleArtifactTitle] = useState(''), [scheduleArtifact, setScheduleArtifact] = useState('')
   const [goals, setGoals] = useState([]), [goalObjective, setGoalObjective] = useState(''), [goalBudget, setGoalBudget] = useState(480), [goalMaxTurns, setGoalMaxTurns] = useState(200), [goalLLMNo, setGoalLLMNo] = useState(''), [selectedGoal, setSelectedGoal] = useState(''), [goalOutput, setGoalOutput] = useState(''), [goalOutputMeta, setGoalOutputMeta] = useState(null)
+  const [autoLLMNo, setAutoLLMNo] = useState('')
+  const [gaLLMs, setGaLLMs] = useState([]), [serviceStartDialog, setServiceStartDialog] = useState(null), [serviceStartLLMNo, setServiceStartLLMNo] = useState('')
   const [goalOutputBytes, setGoalOutputBytes] = useState(() => localStorage.getItem('ga-admin-goal-output-bytes') || '120000')
   const [goalAutoRefresh, setGoalAutoRefresh] = useState(() => localStorage.getItem('ga-admin-goal-auto-refresh') !== 'false')
   const goalOutputSeq = useRef(0), goalRefreshBusy = useRef(false)
@@ -102,6 +104,14 @@ export default function App() {
   const taskSvcs = useMemo(() => group(services, s => s.kind === 'task' || s.name?.includes('task')), [services])
   const frontendSvcs = useMemo(() => group(services, s => s.kind === 'frontend'), [services])
   const reflectSvcs = useMemo(() => group(services, s => s.kind === 'reflect' || s.name?.includes('reflect') || s.name?.includes('autonomous')), [services])
+  const gaLLMOptions = useMemo(() => (gaLLMs || []).map(item => {
+    const rawIndex = item.index ?? item.llm_no ?? item.no
+    const index = Number(rawIndex)
+    if (!Number.isInteger(index)) return null
+    const name = item.name || item.label || item.model || `LLM ${index}`
+    const model = item.model && item.model !== name ? ` · ${item.model}` : ''
+    return { value: String(index), label: `#${index} ${name}${model}`, active: !!item.active }
+  }).filter(Boolean), [gaLLMs])
   const bbsWorkerSvc = useMemo(() => services.find(s => s.name === 'agent_team_worker.py' || s.name?.includes('agent_team_worker.py')), [services])
 
   const refreshTMWebDriverStatus = async () => {
@@ -207,6 +217,44 @@ export default function App() {
   const validateSetupRoot = async () => { setBusy(true); try { const d = await api('/api/setup/validate', { method:'POST', body: JSON.stringify({ path: root }) }); if (!d.ok) throw new Error('GenericAgent health check failed'); const c = await api('/api/config', { dangerous:true, method:'PUT', body: JSON.stringify({ ...cfg, ga_root: d.root }) }); setCfg(c); setRoot(d.root); setMsg(t.setupOk); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const installGA = async () => { setBusy(true); try { const env = setupEnv || await api('/api/setup/env'); setSetupEnv(env); if (!env.ok) throw new Error(t.envMissing); const d = await api('/api/setup/install', { dangerous:true, method:'POST', body: JSON.stringify({ path: installRoot || root }) }); setRoot(d.root); setMsg(t.installDone); await load() } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const serviceAction = async (name, action) => { setBusy(true); try { await api(`/api/services/${action}`, { dangerous:true, method:'POST', body: JSON.stringify({ name }) }); await load(); if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
+  const loadGAServiceLLMs = async () => {
+    const d = await api('/api/ga/llms')
+    const llms = Array.isArray(d.llms) ? d.llms : []
+    setGaLLMs(llms)
+    return llms
+  }
+  const openServiceStartDialog = async (svc) => {
+    setMsg('')
+    setServiceStartDialog(svc)
+    setServiceStartLLMNo('')
+    try {
+      const llms = gaLLMs.length ? gaLLMs : await loadGAServiceLLMs()
+      const active = llms.find(item => item.active && Number.isInteger(Number(item.index ?? item.llm_no ?? item.no)))
+      if (active) setServiceStartLLMNo(String(active.index ?? active.llm_no ?? active.no))
+    } catch(e) {
+      setMsg(`读取 GA 模型列表失败：${e.message}`)
+    }
+  }
+  const confirmServiceStart = async () => {
+    const name = serviceStartDialog?.name
+    if (!name) return
+    setBusy(true); setMsg('')
+    try {
+      const llmNo = serviceStartLLMNo === '' ? null : Number(serviceStartLLMNo)
+      if (llmNo !== null && !Number.isInteger(llmNo)) throw new Error(t.hints.goalLLMInteger)
+      if (llmNo !== null && llmNo < 0) throw new Error(t.hints.goalLLMNonNegative)
+      const body = { name }
+      if (llmNo !== null) body.llm_no = llmNo
+      await api('/api/services/start', { dangerous:true, method:'POST', body: JSON.stringify(body) })
+      setServiceStartDialog(null)
+      await load()
+      if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || [])
+      setMsg(llmNo === null ? `已启动 ${name}` : `已用 LLM #${llmNo} 启动 ${name}`)
+    } catch(e){ setMsg(e.message) } finally{ setBusy(false) }
+  }
+  useEffect(() => {
+    if (tab === 'autonomous' && health?.ok && !gaLLMs.length) loadGAServiceLLMs().catch(e => setMsg(`读取 GA 模型列表失败：${e.message}`))
+  }, [tab, health?.ok])
   const toggleServiceAutostart = async (name, enabled) => { setBusy(true); try { const d = await api('/api/services/autostart', { dangerous:true, method:'POST', body: JSON.stringify({ name, enabled }) }); setServices(d.services || []); setMsg(enabled ? t.enabled : t.disabled) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
   const loadServiceLogs = async (name = selected) => { if (!name) return; setSelected(name); setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) }
   const viewServiceLogs = async (name) => { setTab('logs'); await loadServiceLogs(name) }
@@ -236,6 +284,18 @@ export default function App() {
       if (llmNo !== null) body.llm_no = llmNo
       const d = await api('/api/goals/start', { dangerous:true, method:'POST', body: JSON.stringify(body) })
       setMsg(`${t.hints.goalStarted}: ${d.goal?.id || ''}`); setGoalObjective(''); setSelectedGoal(d.goal?.id || selectedGoal); await loadGoals(); if (d.goal?.id) await loadGoalOutput(d.goal.id)
+    } catch(e){ setMsg(e.message) } finally{ setBusy(false) }
+  }
+  const startAutonomous = async () => {
+    setBusy(true); setMsg('')
+    try {
+      const llmNo = autoLLMNo === '' ? null : Number(autoLLMNo)
+      if (llmNo !== null && !Number.isInteger(llmNo)) throw new Error(t.hints.goalLLMInteger)
+      if (llmNo !== null && llmNo < 0) throw new Error(t.hints.goalLLMNonNegative)
+      const body = {}
+      if (llmNo !== null) body.llm_no = llmNo
+      await api('/api/autonomous/start', { dangerous:true, method:'POST', body: JSON.stringify(body) })
+      setMsg(t.hints.goalStarted); await load()
     } catch(e){ setMsg(e.message) } finally{ setBusy(false) }
   }
   const stopGoal = async (g) => {
@@ -514,11 +574,12 @@ export default function App() {
       {tab==='pets' && <PetsPage />}
       {tab==='memory' && <section><div className="grid2"><Panel title={t.lists.memory}><EntryList items={[inv.memory?.insight, inv.memory?.facts].filter(Boolean)} empty={t.empty}/></Panel><Panel title={t.lists.sop}><EntryList items={[...(inv.memory?.sops||[]), ...(inv.memory?.utils||[])]} empty={t.empty}/></Panel></div></section>}
       {tab==='channels' && <ChannelsPage frontendSvcs={frontendSvcs} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>}
-      {tab==='autonomous' && <section><div className="grid2"><Panel title={t.lists.reflectServices}>{reflectSvcs.length ? reflectSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={n=>serviceAction(n,'start')} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>) : <p className="muted">{t.hints.noReflect}</p>}</Panel><Panel title={t.lists.reflectScripts}><EntryList items={inv.reflect || []} empty={t.hints.noReflect}/></Panel></div><Panel title={t.lists.recentReports}><div className="report-list">{(inv.autonomous_reports || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path, 'autonomous')}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifactTitle?.includes('autonomous_reports') ? (scheduleArtifact || t.empty) : t.empty}</pre></Panel></section>}
-      {tab==='goals' && <GoalsPage t={t} goals={goals} objective={goalObjective} setObjective={setGoalObjective} budget={goalBudget} setBudget={setGoalBudget} maxTurns={goalMaxTurns} setMaxTurns={setGoalMaxTurns} llmNo={goalLLMNo} setLLMNo={setGoalLLMNo} outputBytes={goalOutputBytes} setOutputBytes={setGoalOutputBytes} autoRefresh={goalAutoRefresh} setAutoRefresh={setGoalAutoRefresh} selected={selectedGoal} output={goalOutput} outputMeta={goalOutputMeta} busy={busy} onStart={startGoal} onStop={stopGoal} onDelete={deleteGoal} onRefresh={loadGoals} onOutput={loadGoalOutput} onClearOutput={()=>{ goalOutputSeq.current += 1; setGoalOutput(''); setGoalOutputMeta(null); setMsg(t.hints.goalOutputCleared) }} setMsg={setMsg}/>}
+      {tab==='autonomous' && <section><div className="flex" style={{gap:8,alignItems:'center',marginBottom:12,padding:'8px 0',borderBottom:'1px solid #eee'}}><span style={{fontSize:13,color:'#555'}}>{t.fields.llmNo}:</span><select value={autoLLMNo} onChange={e=>setAutoLLMNo(e.target.value)} style={{padding:'4px 8px',borderRadius:6,border:'1px solid #ccc'}}><option value="">默认 LLM</option>{gaLLMOptions.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}</select><button disabled={busy} onClick={startAutonomous} style={{padding:'4px 12px',background:'#2563eb',color:'#fff',border:'none',borderRadius:6,cursor:busy?'not-allowed':'pointer'}}><Play size={14}/>{t.fields.startGoalMode}</button></div><div className="grid2"><Panel title={t.lists.reflectServices}>{reflectSvcs.length ? reflectSvcs.map(s=><ServiceRow key={s.name} svc={s} t={t} onStart={()=>openServiceStartDialog(s)} onStop={n=>serviceAction(n,'stop')} onLogs={viewServiceLogs} onAutostart={toggleServiceAutostart}/>) : <p className="muted">{t.hints.noReflect}</p>}</Panel><Panel title={t.lists.reflectScripts}><EntryList items={inv.reflect || []} empty={t.hints.noReflect}/></Panel></div><Panel title={t.lists.recentReports}><div className="report-list">{(inv.autonomous_reports || []).map(r=><button key={r.path} onClick={()=>readScheduleArtifact(r.path, 'autonomous')}>{r.name}<small>{new Date(r.mod_time).toLocaleString()}</small></button>)}</div><pre className="artifact-view">{scheduleArtifactTitle?.includes('autonomous_reports') ? (scheduleArtifact || t.empty) : t.empty}</pre></Panel></section>}
+      {tab==='goals' && <GoalsPage t={t} goals={goals} objective={goalObjective} setObjective={setGoalObjective} budget={goalBudget} setBudget={setGoalBudget} maxTurns={goalMaxTurns} setMaxTurns={setGoalMaxTurns} llmNo={goalLLMNo} setLLMNo={setGoalLLMNo} outputBytes={goalOutputBytes} setOutputBytes={setGoalOutputBytes} autoRefresh={goalAutoRefresh} setAutoRefresh={setGoalAutoRefresh} selected={selectedGoal} output={goalOutput} outputMeta={goalOutputMeta} busy={busy} profiles={profiles} onStart={startGoal} onStop={stopGoal} onDelete={deleteGoal} onRefresh={loadGoals} onOutput={loadGoalOutput} onClearOutput={()=>{ goalOutputSeq.current += 1; setGoalOutput(''); setGoalOutputMeta(null); setMsg(t.hints.goalOutputCleared) }} setMsg={setMsg}/>}
       {tab==='settings' && <section className="settings-page"><Panel title={t.nav.settings} className="settings-panel"><div className="root-box settings-root-box"><label>{t.root}</label><div><input value={root} onChange={e=>setRoot(e.target.value)}/><button onClick={saveConfig}><Save size={14}/>{t.save}</button></div><label>{t.fields.pythonPath}</label><div><input value={cfg?.python_path || ''} onChange={e=>setCfg({...cfg, python_path:e.target.value})} placeholder={t.fields.pythonAuto}/><button onClick={saveConfig}><Save size={14}/>{t.save}</button></div><label>{t.fields.chatDataDir}</label><div><input value={cfg?.chat_data_dir || ''} onChange={e=>setCfg({...cfg, chat_data_dir:e.target.value})} placeholder={t.fields.chatDataAuto}/><button onClick={saveConfig}><Save size={14}/>{t.save}</button></div><label>Chat Python 代理</label><div><select value={cfg?.proxy_mode || 'off'} onChange={e=>setCfg({...cfg, proxy_mode:e.target.value})}><option value="off">关闭</option><option value="system">系统</option><option value="custom">自定义</option></select><button onClick={saveConfig}><Save size={14}/>{t.save}</button></div>{(cfg?.proxy_mode || 'off') === 'custom' && <><label>HTTP_PROXY</label><div><input value={cfg?.http_proxy || ''} onChange={e=>setCfg({...cfg, http_proxy:e.target.value})} placeholder="http://127.0.0.1:7890"/></div><label>HTTPS_PROXY</label><div><input value={cfg?.https_proxy || ''} onChange={e=>setCfg({...cfg, https_proxy:e.target.value})} placeholder="http://127.0.0.1:7890"/></div><label>ALL_PROXY</label><div><input value={cfg?.all_proxy || ''} onChange={e=>setCfg({...cfg, all_proxy:e.target.value})} placeholder="socks5://127.0.0.1:7890"/></div><label>NO_PROXY</label><div><input value={cfg?.no_proxy || ''} onChange={e=>setCfg({...cfg, no_proxy:e.target.value})} placeholder="localhost,127.0.0.1"/></div></>}</div></Panel><HatchPetSettings /></section>}
       {tab==='models' && <Models t={t} profiles={profiles} setProfiles={setProfiles} patchProfile={patchProfile} importModels={importModels} previewModels={previewModels} saveModels={saveModels} modelPreview={modelPreview}/>} 
       {tab==='logs' && <section className="logs-page"><div className="logs-layout"><Panel title={t.lists.processes} className="logs-side"><div className="logs-toolbar"><label>{t.hints.tailLines}<input type="number" min="20" max="2000" value={tailLines} onChange={e=>setTailLines(Number(e.target.value) || 200)}/></label><button disabled={!selected} onClick={()=>loadServiceLogs(selected)}><RefreshCw size={14}/>{t.refresh}</button></div><div className="logs-service-list">{services.map(s => <button className={selected===s.name?'log-service active':'log-service'} key={s.name} onClick={()=>loadServiceLogs(s.name)}><span className={s.running?'dot running':'dot'}></span><span className="log-service-name">{s.name}</span><small>{s.kind}{s.pid ? ` · PID ${s.pid}` : ''}</small></button>)}</div></Panel><Panel title={`Logs · ${selected || '-'}`} className="log-panel"><div className="log-head"><div>{selected && <p className="muted log-command" title={services.find(s=>s.name===selected)?.command?.join(' ')}>{services.find(s=>s.name===selected)?.command?.join(' ')}</p>}<span className="log-count">{logs.length} lines · UTF-8</span></div><div className="actions"><button disabled={!selected || services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'start')}><Play size={14}/>{t.start}</button><button disabled={!selected || !services.find(s=>s.name===selected)?.running} onClick={()=>serviceAction(selected,'stop')}><Square size={14}/>{t.stop}</button></div></div><pre className="log-view">{logs.join('\n') || t.hints.noLogs}</pre></Panel></div></section>}      </Suspense>
+      {serviceStartDialog && <div className="service-start-modal" role="dialog" aria-modal="true"><div className="service-start-panel"><h3>启动反思服务</h3><p className="muted">{serviceStartDialog.name}</p><label>{t.fields.llmNo}<select value={serviceStartLLMNo} onChange={e=>setServiceStartLLMNo(e.target.value)}><option value="">默认 LLM</option>{gaLLMOptions.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}</select></label><div className="service-start-actions"><button disabled={busy} className="secondary" onClick={()=>setServiceStartDialog(null)}>取消</button><button disabled={busy} className="primary" onClick={confirmServiceStart}><Play size={14}/>{t.start}</button></div></div></div>}
     </main>
   </div>
 }
@@ -595,18 +656,13 @@ function ChannelsPage({ frontendSvcs, t, onStart, onStop, onLogs, onAutostart })
 
 function PetsPage() {
   const [catalog, setCatalog] = useState(null)
-  const [cfg, setCfg] = useState(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const loadPets = async () => {
     try { const d = await api('/api/pets'); setCatalog(d); return d }
     catch (e) { setMsg(`读取形象列表失败：${e.message}`); return null }
   }
-  const loadConfig = async () => {
-    try { const d = await api('/api/config'); setCfg(d); return d }
-    catch (e) { setMsg(`读取桌宠启动设置失败：${e.message}`); return null }
-  }
-  useEffect(() => { loadPets(); loadConfig() }, [])
+  useEffect(() => { loadPets() }, [])
   const switchPet = async (petId) => {
     setBusy(true); setMsg('正在切换桌宠形象…')
     try {
@@ -615,20 +671,10 @@ function PetsPage() {
       setMsg('已切换当前桌面形象')
     } catch(e) { setMsg(`切换失败：${e.message}`) } finally { setBusy(false) }
   }
-  const savePetDisabled = async (disabled) => {
-    if (!cfg) return
-    setBusy(true); setMsg(disabled ? '正在关闭桌宠启动…' : '正在开启桌宠启动…')
-    try {
-      const next = { ...cfg, desktop_pet_disabled: disabled }
-      const saved = await api('/api/config', { dangerous:true, method:'PUT', body: JSON.stringify(next) })
-      setCfg(saved)
-      setMsg(disabled ? '已设置：下次启动不启动桌宠、不创建窗口。当前已运行的桌宠需重启 GA Admin 后生效。' : '已设置：下次启动会创建并显示桌宠。')
-    } catch(e) { setMsg(`保存桌宠启动设置失败：${e.message}`) } finally { setBusy(false) }
-  }
   const pets = catalog?.pets || []
   const active = catalog?.active_pet_id
   return <section className="pets-page">
-    <Panel title="桌宠形象库" className="pet-manager-card"><div className="pet-manager-head"><div><p className="muted">管理 GA Admin 内置人物/宠物形象。点击“设为当前”会立即切换 Windows 桌面宠物，并把 active pet 写入 pets.local.json。</p>{catalog?.description && <small>{catalog.description}</small>}</div><button onClick={() => { loadPets(); loadConfig() }} disabled={busy}><RefreshCw size={15}/>刷新</button></div><div className="pet-startup-setting"><label><input type="checkbox" checked={!!cfg?.desktop_pet_disabled} disabled={busy || !cfg} onChange={e => savePetDisabled(e.target.checked)}/> 关闭桌宠启动</label><small>开启后下次启动 GA Admin 不创建桌宠窗口；关了就是关了。</small></div>{msg && <p className="muted">{msg}</p>}<div className="pet-grid">{pets.length ? pets.map(p => <article key={p.id} className={`pet-card ${active === p.id ? 'active' : ''}`}><div className="pet-preview"><img src={p.spritesheet || p.manifest} alt={p.name || p.id}/></div><div className="pet-card-body"><div className="pet-title"><b>{p.name || p.id}</b>{active === p.id && <span className="badge ok">当前</span>}</div><p>{p.description || 'GA Admin desktop pet asset'}</p><small>{p.id} · {p.frame_width || 192}×{p.frame_height || 208} · {p.columns || 8}×{p.rows || 9}</small><button disabled={busy || active === p.id} onClick={() => switchPet(p.id)}>{active === p.id ? '已启用' : '设为当前'}</button></div></article>) : <p className="muted">暂无宠物资产。请先生成并写入 web/public/ga-admin-pets/pets.json。</p>}</div></Panel>
+    <Panel title="桌宠形象库" className="pet-manager-card"><div className="pet-manager-head"><div><p className="muted">管理 GA Admin 内置人物/宠物形象。点击“设为当前”会立即切换 Windows 桌面宠物，并把 active pet 写入 pets.local.json。</p>{catalog?.description && <small>{catalog.description}</small>}</div><button onClick={loadPets} disabled={busy}><RefreshCw size={15}/>刷新</button></div>{msg && <p className="muted">{msg}</p>}<div className="pet-grid">{pets.length ? pets.map(p => <article key={p.id} className={`pet-card ${active === p.id ? 'active' : ''}`}><div className="pet-preview"><img src={p.spritesheet || p.manifest} alt={p.name || p.id}/></div><div className="pet-card-body"><div className="pet-title"><b>{p.name || p.id}</b>{active === p.id && <span className="badge ok">当前</span>}</div><p>{p.description || 'GA Admin desktop pet asset'}</p><small>{p.id} · {p.frame_width || 192}×{p.frame_height || 208} · {p.columns || 8}×{p.rows || 9}</small><button disabled={busy || active === p.id} onClick={() => switchPet(p.id)}>{active === p.id ? '已启用' : '设为当前'}</button></div></article>) : <p className="muted">暂无宠物资产。请先生成并写入 web/public/ga-admin-pets/pets.json。</p>}</div></Panel>
     <HatchPetSettings />
   </section>
 }
