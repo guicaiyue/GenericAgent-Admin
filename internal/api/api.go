@@ -33,6 +33,7 @@ type Server struct {
 	Svc         *service.Manager
 	Models      *modelconfig.Store
 	Static      fs.FS
+	StaticRoot  string // disk path for dev hot reload
 	ReactApp    *reactAppBridge
 	PetEvent    func(string)
 	PetSwitch   func(string) error
@@ -633,10 +634,6 @@ func chromeSecurePreferencePaths() []string {
 }
 
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
-	if s.Static == nil {
-		bad(w, 404, "web dist not embedded")
-		return
-	}
 	rawPath := strings.TrimPrefix(r.URL.Path, "/")
 	for _, seg := range strings.Split(rawPath, "/") {
 		if seg == ".." || strings.Contains(seg, `\\`) {
@@ -649,10 +646,25 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 		p = "index.html"
 	}
 	p = path.Clean(p)
-	data, err := fs.ReadFile(s.Static, p)
-	if err != nil {
-		data, err = fs.ReadFile(s.Static, "index.html")
-		if err != nil {
+
+	// Disk-first (dev hot reload), fallback to embedded
+	var data []byte
+	if s.StaticRoot != "" {
+		diskPath := filepath.Join(s.StaticRoot, "web/dist", p)
+		data, _ = os.ReadFile(diskPath)
+	}
+	if data == nil && s.Static != nil {
+		data, _ = fs.ReadFile(s.Static, p)
+	}
+	if data == nil {
+		// fallback index.html from embedded
+		if s.Static != nil {
+			data, _ = fs.ReadFile(s.Static, "index.html")
+		}
+		if data == nil && s.StaticRoot != "" {
+			data, _ = os.ReadFile(filepath.Join(s.StaticRoot, "web/dist", "index.html"))
+		}
+		if data == nil {
 			bad(w, 404, fmt.Sprintf("not found: %s", p))
 			return
 		}

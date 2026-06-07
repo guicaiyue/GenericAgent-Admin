@@ -52,6 +52,7 @@ func main() {
 		log.Fatal(err)
 	}
 	srv := api.New(cfgStore, svc, models, static)
+	srv.StaticRoot = cwd
 	petState := newPetActivityState()
 	srv.PetEvent = petState.handle
 	srv.PetSwitch = switchDesktopPet
