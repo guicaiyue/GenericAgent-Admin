@@ -306,7 +306,7 @@ export default function App() {
       await api('/api/services/start', { dangerous:true, method:'POST', body: JSON.stringify(body) })
       setServiceStartDialog(null)
       await load()
-      if (selected === name) setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || [])
+      if (selected === name) await loadServiceLogs(name, { manageBusy: false })
       setMsg(llmNo === null ? `已启动 ${name}` : `已用 LLM #${llmNo} 启动 ${name}`)
     } catch(e){ setMsg(e.message) } finally{ setBusy(false) }
   }
@@ -314,7 +314,7 @@ export default function App() {
     if (tab === 'autonomous' && health?.ok && !gaLLMs.length) loadGAServiceLLMs().catch(e => setMsg(`读取 GA 模型列表失败：${e.message}`))
   }, [tab, health?.ok])
   const toggleServiceAutostart = async (name, enabled) => { if (!confirmDanger('service-autostart', `${enabled ? '启用' : '禁用'}服务 ${name} 的开机自启？这会修改系统启动配置。`)) return; setBusy(true); try { const d = await api('/api/services/autostart', { dangerous:true, method:'POST', body: JSON.stringify({ name, enabled }) }); setServices(d.services || []); setMsg(enabled ? t.enabled : t.disabled) } catch(e){ setMsg(e.message) } finally{ setBusy(false) } }
-  const loadServiceLogs = async (name = selected) => { if (!name) return; setSelected(name); setLogs((await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`)).lines || []) }
+  const loadServiceLogs = async (name = selected, { manageBusy = true } = {}) => { if (!name) return; if (manageBusy) setBusy(true); try { setSelected(name); const d = await api(`/api/logs/${encodeURIComponent(name)}?lines=${tailLines}`); setLogs(d.lines || []) } catch(e){ setMsg(e.message); setLogs([]) } finally { if (manageBusy) setBusy(false) } }
   const viewServiceLogs = async (name) => { navigateTo('logs'); await loadServiceLogs(name) }
   const pickGoalId = (items = [], preferred = '') => {
     if (preferred && items.some(g => g.id === preferred)) return preferred
