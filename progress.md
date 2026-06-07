@@ -21,12 +21,12 @@
 | 21 | ddcc853 | Chat输入区请求超时/取消/重试 |
 | 22 | 8ef4210 | Goals键盘快捷键j/k导航与可访问提示 |
 | 23 | 20cd522 | Chat会话侧栏搜索+消息复制快捷按钮 |
-| 24 | 待提交 | 主题三态切换(system/dark/light)+系统主题监听；ErrorBoundary适配深色变量 |
+| 24 | cf84a01 | 主题三态切换(system/dark/light)+系统主题监听；ErrorBoundary适配深色变量 |
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 见当前分支HEAD；R24实现提交待回填
+- 最新提交: 见当前分支HEAD；R24实现提交 cf84a01
 
 ## 验证
 - dev服务: http://localhost:13838
