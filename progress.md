@@ -21,21 +21,23 @@
 | 21 | ddcc853 | Chat输入区请求超时/取消/重试 |
 | 22 | 8ef4210 | Goals键盘快捷键j/k导航与可访问提示 |
 | 23 | 20cd522 | Chat会话侧栏搜索+消息复制快捷按钮 |
+| 24 | 待提交 | 主题三态切换(system/dark/light)+系统主题监听；ErrorBoundary适配深色变量 |
 
 ## PR
 - PR#1: https://github.com/guicaiyue/GenericAgent-Admin/pull/1
 - 分支: feat/llm-start-modal-work → main
-- 最新提交: 见当前分支HEAD；R23实现提交 20cd522
+- 最新提交: 见当前分支HEAD；R24实现提交待回填
 
 ## 验证
 - dev服务: http://localhost:13838
 - dist热重载: 13838已自动应用
 - R23验证: `npm run build` 成功；未提交web/dist新hash产物，避免.gitignore导致index.html断链
+- R24验证: `cd web && npm run build` 成功；提交前已 `git restore web/dist`，避免.gitignore导致index.html断链
 
 ## 下轮候选角度
 1. API超时提示/重试按钮
 2. 表单草稿自动保存(localStorage)
 3. 键盘快捷键(j/k导航Goals)
-4. 深色模式跟随系统(prefers-color-scheme)
-5. Chat会话删除API/按钮(后端当前未提供DELETE)
-6. 会话列表时间/最近消息摘要
+4. Chat会话删除API/按钮(后端当前未提供DELETE)
+5. 会话列表时间/最近消息摘要
+6. 主题切换按钮可访问性/快捷键提示

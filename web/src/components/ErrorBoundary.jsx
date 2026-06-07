@@ -27,17 +27,18 @@ export class ErrorBoundary extends React.Component {
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', minHeight: '100vh', gap: '16px',
-          color: '#171717', fontFamily: 'system-ui, sans-serif'
+          background: 'var(--bg)', color: 'var(--text)', fontFamily: 'system-ui, sans-serif',
+          padding: '24px'
         }}>
           <span style={{ fontSize: '48px' }}>⚠️</span>
           <h2 style={{ margin: 0, fontSize: '20px' }}>页面渲染出错</h2>
-          <p style={{ margin: 0, color: '#6f6a6b', maxWidth: '480px', textAlign: 'center', fontSize: '14px' }}>
+          <p style={{ margin: 0, color: 'var(--muted)', maxWidth: '480px', textAlign: 'center', fontSize: '14px' }}>
             {this.state.error?.message || '未知错误'}
           </p>
           <button
             onClick={this.handleRetry}
             style={{
-              padding: '8px 20px', background: '#22c55e', color: '#fff',
+              padding: '8px 20px', background: 'var(--accent)', color: '#fff',
               border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px'
             }}
           >
