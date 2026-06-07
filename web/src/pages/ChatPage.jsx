@@ -6,9 +6,9 @@ import { TurnList } from '../components/turns'
 export function ChatPage({ t }) {
   const [sessions, setSessions] = useState([]), [sid, setSid] = useState(''), [messages, setMessages] = useState([])
   const [prompt, setPrompt] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState('')
-  const loadSessions = async () => { const d = await api('/api/chat/sessions'); setSessions(d.sessions || []); if (!sid && d.sessions?.[0]) await openSession(d.sessions[0].id) }
-  const openSession = async (id) => { const d = await api(`/api/chat/session/${id}`); setSid(d.id); setMessages(d.messages || []) }
-  const newSession = async () => { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); setSid(d.id); setMessages([]); await loadSessions() }
+  const loadSessions = async () => { try { const d = await api('/api/chat/sessions'); setSessions(d.sessions || []); if (!sid && d.sessions?.[0]) await openSession(d.sessions[0].id) } catch(e){ setErr(e.message) } }
+  const openSession = async (id) => { try { const d = await api(`/api/chat/session/${id}`); setSid(d.id); setMessages(d.messages || []) } catch(e){ setErr(e.message) } }
+  const newSession = async () => { try { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); setSid(d.id); setMessages([]); await loadSessions() } catch(e){ setErr(e.message) } }
   useEffect(()=>{ loadSessions().catch(e=>setErr(e.message)) }, [])
   const send = async () => {
     const text = prompt.trim()
@@ -20,7 +20,7 @@ export function ChatPage({ t }) {
     }
     if (!text || busy) return
     let cur = sid
-    if (!cur) { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); cur = d.id; setSid(cur) }
+    if (!cur) { try { const d = await api('/api/chat/session/new', { method:'POST', body:'{}' }); cur = d.id; setSid(cur) } catch(e){ setErr(e.message); return } }
     setPrompt(''); setBusy(true); setErr('')
     const user = { id: `u-${Date.now()}`, role:'user', content:text, created_at: Math.floor(Date.now()/1000) }
     const assistant = { id: `a-${Date.now()}`, role:'assistant', content:'', created_at: Math.floor(Date.now()/1000) }
