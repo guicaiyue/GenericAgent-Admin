@@ -512,20 +512,29 @@ export default function App() {
     }
   }
   useEffect(() => {
-    let stop = false
+    let mounted = true
+    let inFlight = false
+    let timer = null
     const tick = async () => {
+      if (!mounted || inFlight) return
+      inFlight = true
       try {
-        const d = await refreshVersionStatus()
-        if (!stop && d?.running) setTimeout(tick, 1500)
-      } catch (_) {}
+        const d = await api('/api/version/status')
+        if (!mounted) return
+        setVersionStatus(d)
+        if (d?.check) setVersionCheck(d.check)
+        if (d?.running) timer = window.setTimeout(tick, 1500)
+      } catch (e) {
+        if (mounted) setVersionStatus(prev => ({ ...(prev || {}), error: e.message }))
+      } finally {
+        inFlight = false
+      }
     }
     tick()
-    return () => { stop = true }
-  }, [])
-  useEffect(() => {
-    if (!versionStatus?.running) return
-    const timer = setInterval(() => refreshVersionStatus().catch(e => setMsg(e.message)), 1500)
-    return () => clearInterval(timer)
+    return () => {
+      mounted = false
+      if (timer !== null) window.clearTimeout(timer)
+    }
   }, [versionStatus?.running])
   const checkVersion = async () => {
     setVersionBusy(true)
