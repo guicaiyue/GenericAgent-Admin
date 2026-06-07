@@ -370,3 +370,12 @@ MM web/src/style.css
 - 修复 `web/src/App.jsx`：`loadFiles(path, { manageBusy = true })` 增加 busy 包裹、try/catch、失败 `setMsg(e.message)` 并清空文件列表，避免用户点击无响应。
 - 初始化 `load()` 与 `saveFile()` 的内部刷新调用传入 `{ manageBusy:false }`，避免嵌套调用提前清除外层 busy 状态。
 - 验证：`npm run build` 通过；dev 13838 热加载后 HTML/entry/App chunk 与 dist 一致：`index-EwL9pKQo.js` → `App-wLS74r8X.js`，served App chunk 包含 `manageBusy` 修复。
+
+## 2026-06-08 Round8 - 服务日志加载错误反馈
+- 扫描 async handlers 发现 `loadServiceLogs`（行317）直接 `await api(...)` 无 try/catch、无 busy 态、无错误提示，服务日志加载失败时用户完全无感知。
+- 同样 `confirmServiceStart` 中存在嵌套 bare `await api(...)` 调用无保护。
+- 修复 `web/src/App.jsx`：
+  - `loadServiceLogs(name, { manageBusy = true })`：增加 try/catch，失败时 `setMsg(e.message)` 并清空 `logs` 列表；busy 态可选控制。
+  - `confirmServiceStart`：改用 `loadServiceLogs(name, { manageBusy: false })` 替代 bare api call。
+- 验证：`npm run build` 通过；13838 served entry/chunk 与 dist 一致 (`index-Bmy1gCCx.js` → `App-DvI4um1R.js`)。
+- 提交推送：`bac8e05 fix(logs): add error handling and busy state to loadServiceLogs`，已推送 origin/feat/llm-start-modal-work。
