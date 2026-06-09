@@ -15,6 +15,43 @@ import (
 	"time"
 )
 
+type OptionalBool bool
+
+func (b *OptionalBool) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	var raw interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch v := raw.(type) {
+	case bool:
+		*b = OptionalBool(v)
+		return nil
+	case string:
+		parsed := parseOptionalBoolString(v)
+		*b = OptionalBool(parsed)
+		return nil
+	default:
+		return fmt.Errorf("fake_cc_system_prompt must be a boolean or boolean string")
+	}
+}
+
+func parseOptionalBoolString(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false", "f", "no", "n", "off":
+		return false
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	default:
+		// Preserve the old string-field behavior for legacy non-empty values:
+		// GA treats any non-empty fake_cc_system_prompt value as enabled.
+		return true
+	}
+}
+
 type Profile struct {
 	VarName            string                 `json:"var_name"`
 	Type               string                 `json:"type"`
@@ -30,7 +67,7 @@ type Profile struct {
 	APIMode            string                 `json:"api_mode,omitempty"`
 	ThinkingType       string                 `json:"thinking_type,omitempty"`
 	ReasoningEffort    string                 `json:"reasoning_effort,omitempty"`
-	FakeCCSystemPrompt string                 `json:"fake_cc_system_prompt,omitempty"`
+	FakeCCSystemPrompt *OptionalBool          `json:"fake_cc_system_prompt,omitempty"`
 	Extra              map[string]interface{} `json:"extra,omitempty"`
 }
 
@@ -341,8 +378,8 @@ func Render(profiles []Profile) (string, error) {
 		if p.ReasoningEffort != "" {
 			m["reasoning_effort"] = p.ReasoningEffort
 		}
-		if p.FakeCCSystemPrompt != "" {
-			m["fake_cc_system_prompt"] = p.FakeCCSystemPrompt
+		if p.FakeCCSystemPrompt != nil {
+			m["fake_cc_system_prompt"] = bool(*p.FakeCCSystemPrompt)
 		}
 		for k, v := range p.Extra {
 			if _, ok := m[k]; !ok {

@@ -49,6 +49,41 @@ func TestModelsRawAndPreviewMethodContracts(t *testing.T) {
 	}
 }
 
+func TestModelsSaveAcceptsBooleanFakeCCSystemPrompt(t *testing.T) {
+	s := newModelTestServer(t, t.TempDir())
+	body := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":true}]}`)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/models", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	markDangerous(req)
+	s.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d want=200 body=%s", rr.Code, rr.Body.String())
+	}
+	raw, err := s.Models.Load(true)
+	if err != nil {
+		t.Fatalf("Load(true) error = %v", err)
+	}
+	if len(raw.Profiles) != 1 || raw.Profiles[0].FakeCCSystemPrompt == nil || !bool(*raw.Profiles[0].FakeCCSystemPrompt) {
+		t.Fatalf("FakeCCSystemPrompt = %#v, want true", raw.Profiles)
+	}
+}
+
+func TestModelsPreviewRendersBooleanFakeCCSystemPrompt(t *testing.T) {
+	s := newModelTestServer(t, t.TempDir())
+	body := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":true}]}`)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/models/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	s.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d want=200 body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `\"fake_cc_system_prompt\": True`) {
+		t.Fatalf("preview did not render Python bool: %s", rr.Body.String())
+	}
+}
+
 func TestModelsRawRequiresDangerousConfirm(t *testing.T) {
 	root := t.TempDir()
 	writeTestMyKey(t, root, "sk-raw-secret")

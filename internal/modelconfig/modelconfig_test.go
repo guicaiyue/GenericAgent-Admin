@@ -1,12 +1,49 @@
 package modelconfig
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestProfileAcceptsBooleanFakeCCSystemPrompt(t *testing.T) {
+	data := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":true}]}`)
+	var draft Draft
+	if err := json.Unmarshal(data, &draft); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(draft.Profiles) != 1 || draft.Profiles[0].FakeCCSystemPrompt == nil || !bool(*draft.Profiles[0].FakeCCSystemPrompt) {
+		t.Fatalf("FakeCCSystemPrompt = %#v, want true", draft.Profiles)
+	}
+	rendered, err := Render(draft.Profiles)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(rendered, `"fake_cc_system_prompt": True`) {
+		t.Fatalf("rendered fake_cc_system_prompt not Python bool:\n%s", rendered)
+	}
+}
+
+func TestProfileAcceptsLegacyStringFakeCCSystemPrompt(t *testing.T) {
+	data := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":"false"}]}`)
+	var draft Draft
+	if err := json.Unmarshal(data, &draft); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(draft.Profiles) != 1 || draft.Profiles[0].FakeCCSystemPrompt == nil || bool(*draft.Profiles[0].FakeCCSystemPrompt) {
+		t.Fatalf("FakeCCSystemPrompt = %#v, want false", draft.Profiles)
+	}
+	rendered, err := Render(draft.Profiles)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(rendered, `"fake_cc_system_prompt": False`) {
+		t.Fatalf("rendered fake_cc_system_prompt not Python false:\n%s", rendered)
+	}
+}
 
 func TestStoreSaveCreatesRootAndLoadsMaskedSecrets(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "missing", "models")
