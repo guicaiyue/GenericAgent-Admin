@@ -758,6 +758,11 @@ type reactAppBridge struct {
 	status string
 }
 
+var (
+	reactAppReadyTimeout      = 5 * time.Second
+	reactAppReadyPollInterval = 150 * time.Millisecond
+)
+
 func newReactAppBridge() *reactAppBridge { return &reactAppBridge{status: "stopped"} }
 
 func (b *reactAppBridge) snapshot() map[string]interface{} {
@@ -794,6 +799,8 @@ func (b *reactAppBridge) stop() error {
 	b.mu.Lock()
 	cmd := b.cmd
 	b.status = "stopped"
+	b.proxy = nil
+	b.base = nil
 	b.mu.Unlock()
 	if cmd != nil && cmd.Process != nil {
 		return cmd.Process.Kill()
@@ -870,15 +877,31 @@ func (b *reactAppBridge) start(gaRoot string) error {
 		}
 		b.mu.Unlock()
 	}()
-	deadline := time.Now().Add(5 * time.Second)
+	return b.waitUntilReady(port, cmd)
+}
+
+func (b *reactAppBridge) waitUntilReady(port int, cmd *exec.Cmd) error {
+	deadline := time.Now().Add(reactAppReadyTimeout)
 	for time.Now().Before(deadline) {
 		if conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond); err == nil {
 			_ = conn.Close()
 			return nil
 		}
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(reactAppReadyPollInterval)
 	}
-	return nil
+	err := fmt.Errorf("reactapp did not become ready on 127.0.0.1:%d within %s", port, reactAppReadyTimeout)
+	b.appendLog("[readiness timeout] " + err.Error())
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	b.mu.Lock()
+	if b.cmd == cmd {
+		b.status = "stopped"
+		b.proxy = nil
+		b.base = nil
+	}
+	b.mu.Unlock()
+	return err
 }
 
 func (b *reactAppBridge) copyPipe(r io.Reader) {

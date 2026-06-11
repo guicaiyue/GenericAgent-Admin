@@ -271,6 +271,15 @@ git diff --check
 - `mykey.py`、真实 API Key、Token、Cookie 等私密文件不应提交、不应随发布包分发。
 - 管理端适合在本机或可信局域网使用；如需公网暴露，应额外增加认证、TLS 和访问控制。
 
+## Local packaging checklist
+
+Before creating a local Windows package or a release asset:
+
+- Run the normal validation gates first; `build.bat` only installs/builds the web app and compiles `dist\ga-admin.exe`, it is not a substitute for tests.
+- Keep `cmd\chat_worker.py` beside the executable in packaged builds; the batch script copies it to `dist\cmd\chat_worker.py`.
+- Confirm local-only secrets such as `config.local.json`, `mykey.py`, `.env`, and `*.key` files are not present in the working tree, `dist`, or release assets.
+- After publishing, verify the update flow from the Admin UI so the asset name and sha256 sidecar are both discoverable.
+
 ## License
 
 本项目随 GenericAgent 生态内部使用；如需对外分发，请先确认上游 GenericAgent 与依赖项目的许可要求。

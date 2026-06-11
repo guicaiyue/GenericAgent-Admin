@@ -52,7 +52,7 @@ func main() {
 	srv.PetSwitch = switchDesktopPet
 	addr := fmt.Sprintf("%s:%d", cfgStore.Cfg.Host, cfgStore.Cfg.Port)
 	url := "http://" + addr
-	server := &http.Server{Addr: addr, Handler: srv.Routes()}
+	server := newHTTPServer(addr, srv.Routes())
 	go srv.StartAutostartServices()
 	go func() {
 		log.Printf("GenericAgent Admin Go listening on %s", url)
@@ -102,6 +102,20 @@ func main() {
 type launchOptions struct {
 	Headless  bool
 	NoBrowser bool
+}
+
+const (
+	adminReadHeaderTimeout = 10 * time.Second
+	adminIdleTimeout       = 120 * time.Second
+)
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: adminReadHeaderTimeout,
+		IdleTimeout:       adminIdleTimeout,
+	}
 }
 
 func parseLaunchOptions() launchOptions {
