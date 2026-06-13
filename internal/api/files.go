@@ -77,6 +77,10 @@ func (s *Server) filesImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", mime)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if ext == ".svg" {
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+	}
 	w.Header().Set("Cache-Control", "private, max-age=60")
 	http.ServeFile(w, r, p)
 }
@@ -100,6 +104,62 @@ func (s *Server) filesWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, d)
+}
+
+func (s *Server) filesDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	path := strings.TrimSpace(r.URL.Query().Get("path"))
+	if path == "" && r.Body != nil {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := decode(r, &req); err == nil {
+			path = strings.TrimSpace(req.Path)
+		}
+	}
+	if path == "" {
+		bad(w, 400, "path required")
+		return
+	}
+	if err := ga.DeleteSafe(s.CfgStore.Cfg.GARoot, path); err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) filesDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	p := strings.TrimSpace(r.URL.Query().Get("path"))
+	if p == "" {
+		bad(w, 400, "path required")
+		return
+	}
+	var clean string
+	var err error
+	p, clean, err = ga.SafeResolveAny(s.CfgStore.Cfg.GARoot, p)
+	if err != nil {
+		bad(w, 400, err.Error())
+		return
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		bad(w, 404, err.Error())
+		return
+	}
+	if info.IsDir() {
+		bad(w, 400, "cannot download directory")
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+strings.ReplaceAll(filepath.Base(clean), "\"", "")+"\"")
+	http.ServeFile(w, r, p)
 }
 
 func (s *Server) filesTail(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +238,10 @@ func (s *Server) filesOpen(w http.ResponseWriter, r *http.Request) {
 	mode := strings.ToLower(strings.TrimSpace(req.Mode))
 	if mode == "" {
 		mode = "file"
+	}
+	if mode != "file" && mode != "folder" {
+		bad(w, 400, "mode must be file or folder")
+		return
 	}
 	if err := openLocalPath(p, info.IsDir(), mode); err != nil {
 		bad(w, 500, err.Error())

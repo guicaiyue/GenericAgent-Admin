@@ -55,7 +55,7 @@ func main() {
 	srv.PetSwitch = switchDesktopPet
 	addr := fmt.Sprintf("%s:%d", cfgStore.Cfg.Host, cfgStore.Cfg.Port)
 	url := "http://" + addr
-	server := &http.Server{Addr: addr, Handler: srv.Routes()}
+	server := newHTTPServer(addr, srv.Routes())
 	go srv.StartAutostartServices()
 	go func() {
 		log.Printf("GenericAgent Admin Go listening on %s", url)
@@ -75,12 +75,17 @@ func main() {
 	if !launch.NoBrowser {
 		go func() { time.Sleep(500 * time.Millisecond); openBrowser(url) }()
 	}
-	if activePet := srv.ActivePetID(); activePet != "" {
-		if err := switchDesktopPet(activePet); err != nil {
-			log.Printf("load active desktop pet %q failed: %v", activePet, err)
+	stopPet := func() {}
+	if cfgStore.Cfg.DesktopPetDisabled {
+		log.Printf("desktop pet disabled by config")
+	} else {
+		if activePet := srv.ActivePetID(); activePet != "" {
+			if err := switchDesktopPet(activePet); err != nil {
+				log.Printf("load active desktop pet %q failed: %v", activePet, err)
+			}
 		}
+		stopPet = startDesktopPet(func() { openBrowser(url + "/chat") })
 	}
-	stopPet := startDesktopPet(func() { openBrowser(url + "/chat") })
 	runTray(url,
 		func() { openBrowser(url) },
 		func() { openBrowser(url + "/chat") },
@@ -101,6 +106,20 @@ type launchOptions struct {
 	Headless  bool
 	NoBrowser bool
 	Config    string // path to config file (empty = default config.local.json)
+}
+
+const (
+	adminReadHeaderTimeout = 10 * time.Second
+	adminIdleTimeout       = 120 * time.Second
+)
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: adminReadHeaderTimeout,
+		IdleTimeout:       adminIdleTimeout,
+	}
 }
 
 func parseLaunchOptions() launchOptions {

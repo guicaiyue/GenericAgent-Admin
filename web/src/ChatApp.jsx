@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
-import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, Clock3, Copy, Edit3, FileImage, FileText, ImagePlus, Menu, MessageSquarePlus, MoreHorizontal, PanelRightOpen, Pin, RefreshCw, Send, Sparkles, Square, Trash2, Wrench, X } from 'lucide-react'
 import { api, apiStream } from './lib/api'
 import { confirmDanger } from './lib/danger'
+import { JSON_TREE_CHILD_LIMIT, JSON_TREE_STRING_LIMIT, LIST_ITEM_LIMIT, LONG_TEXT_PREVIEW_CHARS, MARKDOWN_BLOCK_LIMIT, MARKDOWN_CHAR_LIMIT, MARKDOWN_LINE_LIMIT, parseAssistantContent, previewLongText, textRenderStats } from './lib/chatTextSafety'
 
 gsap.registerPlugin(useGSAP)
 
@@ -81,6 +82,45 @@ function CopyButton({ text, compact = false }) {
   </button>
 }
 
+function LongTextPreview({ text = '', stats }) {
+  const s = stats || textRenderStats(text)
+  const preview = useMemo(() => previewLongText(text), [text])
+  return <div className="oa-long-text-preview">
+    <div className="oa-long-text-head">
+      <b>内容过大，已切换安全预览</b>
+      <span>{s.chars.toLocaleString()} 字符 · {s.linesLabel} 行</span>
+      <CopyButton text={text} compact />
+    </div>
+    <pre>{preview}</pre>
+  </div>
+}
+
+function JsonTree({ data, name = 'root', depth = 0 }) {
+  const [open, setOpen] = useState(depth < 2)
+  const isArray = Array.isArray(data)
+  const isObject = data && typeof data === 'object' && !isArray
+  if (!isArray && !isObject) {
+    const cls = data === null ? 'is-null' : typeof data === 'string' ? 'is-string' : typeof data === 'number' ? 'is-number' : typeof data === 'boolean' ? 'is-bool' : ''
+    const raw = typeof data === 'string' ? data : JSON.stringify(data)
+    const long = typeof raw === 'string' && raw.length > JSON_TREE_STRING_LIMIT
+    const shown = long ? `${raw.slice(0, JSON_TREE_STRING_LIMIT)}… (${raw.length.toLocaleString()} chars)` : raw
+    return <div className="oa-json-line" style={{ '--depth': depth }}><span className="oa-json-key">{name}:</span> <span className={`oa-json-value ${cls}`}>{typeof data === 'string' ? JSON.stringify(shown) : shown}</span></div>
+  }
+  const entries = isArray ? data.map((v, i) => [i, v]) : Object.entries(data)
+  const shownEntries = entries.slice(0, JSON_TREE_CHILD_LIMIT)
+  const hidden = entries.length - shownEntries.length
+  const label = isArray ? `Array(${data.length})` : `Object(${entries.length})`
+  return <div className="oa-json-node">
+    <button type="button" className="oa-json-toggle" style={{ '--depth': depth }} onClick={()=>setOpen(v=>!v)}>
+      <span className="oa-json-caret">{open ? '▾' : '▸'}</span><span className="oa-json-key">{name}</span><span className="oa-json-type">{label}</span>
+    </button>
+    {open && <div>
+      {shownEntries.map(([k, v]) => <JsonTree key={String(k)} name={String(k)} data={v} depth={depth + 1} />)}
+      {hidden > 0 && <div className="oa-json-line oa-json-more" style={{ '--depth': depth + 1 }}>… 已隐藏 {hidden.toLocaleString()} 项，复制原始 JSON 查看全部</div>}
+    </div>}
+  </div>
+}
+
 function isImageFile(f) {
   if (!f) return false
   const mime = String(f.type || f.mime || '')
@@ -95,8 +135,9 @@ function FileAttachment({ path }) {
   const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(clean.split(/[?#]/)[0] || clean)
   const imageUrl = `/api/files/image?path=${encodeURIComponent(clean)}`
   const open = async (mode) => {
+    if (!confirmDanger('chat-file-open', `使用系统桌面打开${mode === 'folder' ? '文件所在位置' : '文件'}：${clean}？`)) return
     try {
-      await api('/api/files/open', { method:'POST', body: JSON.stringify({ path: clean, mode }) })
+      await api('/api/files/open', { dangerous:true, method:'POST', body: JSON.stringify({ path: clean, mode }) })
     } catch (e) {
       alert(`打开失败：${e?.message || e}`)
     }
@@ -207,7 +248,9 @@ const normalizeToolParts = (parts = []) => {
 }
 
 const MarkdownBlock = memo(function MarkdownBlock({ text = '', onAskReply }) {
-  const parts = useMemo(() => normalizeToolParts(splitMarkdownParts(text)), [text])
+  const stats = useMemo(() => textRenderStats(text), [text])
+  const parts = useMemo(() => stats.tooLarge ? [] : normalizeToolParts(splitMarkdownParts(text)).slice(0, MARKDOWN_BLOCK_LIMIT), [text, stats.tooLarge])
+  if (stats.tooLarge) return <div className="oa-md"><LongTextPreview text={text} stats={stats} /></div>
   return <div className="oa-md">
     {parts.map((p, idx) => p.type === 'code'
       ? <div className="oa-code-card" key={idx}>
@@ -217,6 +260,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text = '', onAskReply }) {
       : p.type === 'tool'
         ? <ToolCallBlock key={idx} call={p.call} onAskReply={onAskReply} />
         : <TextMarkdown key={idx} text={p.text} onAskReply={onAskReply}/>) }
+    {parts.length >= MARKDOWN_BLOCK_LIMIT && <div className="oa-md-truncated">内容块过多，仅渲染前 {MARKDOWN_BLOCK_LIMIT} 块，可复制消息查看完整内容。</div>}
   </div>
 })
 
@@ -355,14 +399,17 @@ function renderMarkdownTable(table, key) {
 function renderListBlock(lines, i, ordered) {
   const itemRe = ordered ? /^\s*(\d+)[.)]\s+/ : /^\s*[-*+]\s+/
   const Tag = ordered ? 'ol' : 'ul'
+  const shownLines = lines.slice(0, LIST_ITEM_LIMIT)
+  const hidden = Math.max(0, lines.length - shownLines.length)
   const firstNumber = ordered ? Number(String(lines[0] || '').match(itemRe)?.[1] || 1) : undefined
   const props = ordered ? { start: firstNumber } : {}
   return <Tag key={i} className={`oa-list ${ordered ? 'oa-list-ordered' : 'oa-list-unordered'}`} {...props}>
-    {lines.map((x,j)=>{
+    {shownLines.map((x,j)=>{
       const itemNumber = ordered ? Number(String(x || '').match(itemRe)?.[1] || firstNumber + j) : undefined
       const liProps = ordered ? { value: itemNumber } : {}
       return <li key={j} {...liProps}><InlineRichText text={x.replace(itemRe, '')} /></li>
     })}
+    {hidden > 0 && <li className="oa-md-truncated">… 已隐藏 {hidden.toLocaleString()} 个列表项</li>}
   </Tag>
 }
 
@@ -428,7 +475,9 @@ function renderTextBlock(b, i) {
 }
 
 function TextMarkdown({ text = '', onAskReply }) {
-  const blocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
+  const allBlocks = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/)
+  const blocks = allBlocks.slice(0, MARKDOWN_BLOCK_LIMIT)
+  const hiddenBlocks = Math.max(0, allBlocks.length - blocks.length)
   const nodes = []
   for (let i = 0; i < blocks.length; i++) {
     const toolCall = parseToolCallBlock(blocks[i])
@@ -451,44 +500,17 @@ function TextMarkdown({ text = '', onAskReply }) {
     }
     nodes.push(renderTextBlock(blocks[i], i))
   }
+  if (hiddenBlocks > 0) nodes.push(<div key="__hidden_blocks" className="oa-md-truncated">… 已隐藏 {hiddenBlocks.toLocaleString()} 个内容块，可复制消息查看完整内容。</div>)
   return <>{nodes}</>
-}
-
-const FINAL_MARKER_RE = /```+\s*\n?\[Info\]\s*Final response to user\.\s*\n?```+/i
-const TURN_HEADER_RE = /(?:^|\n)\s*(?:\*\*)?\s*LLM Running\s*\(Turn\s+(\d+)(?:\))?\s*(?:\.\.\.)?\s*(?:\*\*)?/gi
-
-const cleanRunBody = (s = '') => String(s || '')
-  .replace(/<summary>[\s\S]*?<\/summary>/gi, '')
-  .replace(/\n{3,}/g, '\n\n')
-  .trim()
-
-const parseAssistantContent = (raw = '') => {
-  const full = String(raw || '').replace(/\r\n/g, '\n')
-  const finalMatch = full.match(FINAL_MARKER_RE)
-  const processText = finalMatch ? full.slice(0, finalMatch.index) : full
-  const finalText = finalMatch ? full.slice(finalMatch.index + finalMatch[0].length) : ''
-  const runs = []
-  const matches = [...processText.matchAll(TURN_HEADER_RE)]
-
-  if (matches.length) {
-    matches.forEach((m, i) => {
-      const start = m.index + m[0].length
-      const end = i + 1 < matches.length ? matches[i + 1].index : processText.length
-      const chunk = processText.slice(start, end).trim()
-      const summary = chunk.match(/<summary>([\s\S]*?)<\/summary>/i)
-      const title = summary?.[1]?.trim() || `Turn ${m[1]}`
-      runs.push({ turn: Number(m[1]) || i + 1, title, body: cleanRunBody(chunk) })
-    })
-    return { runs, body: (finalText || '').replace(/\n{3,}/g, '\n\n').trim() }
-  }
-
-  return { runs: [], body: full.replace(FINAL_MARKER_RE, '').replace(/\n{3,}/g, '\n\n').trim() }
 }
 
 const AssistantContent = memo(function AssistantContent({ content, pending, onAskReply }) {
   const [openTurns, setOpenTurns] = useState({})
+  const stats = useMemo(() => textRenderStats(content), [content])
   const parsed = useMemo(() => parseAssistantContent(content), [content])
+  const hasTurnSplit = parsed.runs.length > 0
   if (!content && pending) return <div className="oa-content oa-thinking">正在思考…</div>
+  if (content && stats.tooLarge && !hasTurnSplit) return <div className="oa-content"><LongTextPreview text={content} stats={stats} /></div>
   const boxedRuns = parsed.runs.slice(0, -1)
   const lastRun = parsed.runs[parsed.runs.length - 1]
   const isTurnOpen = (r, i) => openTurns[`${r.turn}-${i}`] === true
@@ -527,8 +549,16 @@ const AssistantContent = memo(function AssistantContent({ content, pending, onAs
 
 // 用户消息正文里会被自动追加附件清单（前端乐观态的“[图片附件]”或后端保存后的“[附件已保存]\n[FILE:...]”）。
 // 这些附件已经由 oa-message-images 单独渲染，若再经 InlineRichText 渲染 [FILE:] 会导致图片重复显示，故在展示前剥离该尾块。
-const stripUserAttachmentBlock = (content = '') =>
-  String(content || '').replace(/\n*\[(?:图片附件|附件已保存)\][\s\S]*$/, '').trimEnd()
+const stripUserAttachmentBlock = (content = '') => {
+  const src = String(content || '')
+  const markers = ['\n[图片附件]', '\n[附件已保存]', '[图片附件]', '[附件已保存]']
+  let cut = -1
+  for (const marker of markers) {
+    const i = src.lastIndexOf(marker)
+    if (i >= 0 && (cut < 0 || i < cut)) cut = i
+  }
+  return cut >= 0 ? src.slice(0, cut).trimEnd() : src
+}
 
 const ChatMessage = memo(function ChatMessage({ message: m, pending, onAskReply }) {
   const userText = m.role === 'user' ? stripUserAttachmentBlock(m.content) : m.content
@@ -558,6 +588,10 @@ export default function ChatApp() {
   const [sessions, setSessions] = useState([])
   const [sid, setSid] = useState('')
   const [messages, setMessages] = useState([])
+  const [rawHistory, setRawHistory] = useState([])
+  const [historyInfo, setHistoryInfo] = useState([])
+  const [workingState, setWorkingState] = useState(null)
+  const [contextOpen, setContextOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [streamingSid, setStreamingSid] = useState('')
@@ -566,6 +600,7 @@ export default function ChatApp() {
   const [notice, setNotice] = useState('')
   const [llms, setLlms] = useState([])
   const [llmNo, setLlmNo] = useState(0)
+  const [toolsMode, setToolsMode] = useState('official')
   const [menuOpen, setMenuOpen] = useState('')
   const [menuPos, setMenuPos] = useState(null)
   const [editing, setEditing] = useState('')
@@ -577,12 +612,17 @@ export default function ChatApp() {
   const [dragging, setDragging] = useState(false)
   const [autoFollow, setAutoFollow] = useState(true)
   const [showFollow, setShowFollow] = useState(false)
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  const toolsMenuRef = useRef(null)
   const threadRef = useRef(null)
   const endRef = useRef(null)
   const fileRef = useRef(null)
   const promptRef = useRef(null)
   const streamAbortRef = useRef(null)
   const runSeqRef = useRef(0)
+  const openSeqRef = useRef(0)
+  const activeSidRef = useRef('')
+  const scrollModeRef = useRef('auto')
   const queuedRef = useRef([])
   const chatScope = useRef(null)
   // Auto-grow composer textarea to fit content (clamped), reset to single row when cleared.
@@ -596,27 +636,35 @@ export default function ChatApp() {
     el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden'
   }, [prompt])
   const current = useMemo(() => sessions.find(s => s.id === sid), [sessions, sid])
+  useEffect(() => { activeSidRef.current = sid }, [sid])
 
-  const applyStreamEvent = (ev, pendingId, clientUserID = '') => {
+  const isActiveSession = (sessionId) => !sessionId || activeSidRef.current === sessionId
+
+  const applyStreamEvent = (ev, pendingId, clientUserID = '', sessionId = '') => {
+    if (!isActiveSession(sessionId)) return
     if (ev.type === 'user' && ev.message) {
-      setMessages(xs => clientUserID
-        ? xs.map(m => m.id === clientUserID ? ev.message : m)
-        : (xs.some(m => m.id === ev.message.id) ? xs : [...xs, ev.message]))
+      setMessages(xs => {
+        if (!isActiveSession(sessionId)) return xs
+        return clientUserID
+          ? xs.map(m => m.id === clientUserID ? ev.message : m)
+          : (xs.some(m => m.id === ev.message.id) ? xs : [...xs, ev.message])
+      })
     }
     if (ev.message && (ev.type === 'done' || ev.type === 'error')) {
-      setMessages(xs => xs.map(m => m.id === pendingId ? ev.message : m))
+      setMessages(xs => isActiveSession(sessionId) ? xs.map(m => m.id === pendingId ? ev.message : m) : xs)
     }
   }
 
-  const createStreamBatcher = (pendingId) => {
+  const createStreamBatcher = (pendingId, sessionId = '') => {
     let pendingDelta = ''
     let raf = 0
     const flush = () => {
       raf = 0
       if (!pendingDelta) return
+      if (!isActiveSession(sessionId)) { pendingDelta = ''; return }
       const chunk = pendingDelta
       pendingDelta = ''
-      setMessages(xs => xs.map(m => m.id === pendingId ? { ...m, content: (m.content || '') + chunk } : m))
+      setMessages(xs => isActiveSession(sessionId) ? xs.map(m => m.id === pendingId ? { ...m, content: (m.content || '') + chunk } : m) : xs)
     }
     const schedule = () => {
       if (raf) return
@@ -639,9 +687,9 @@ export default function ChatApp() {
     }
   }
 
-  const readStream = async (res, pendingId, clientUserID = '') => {
+  const readStream = async (res, pendingId, clientUserID = '', sessionId = '') => {
     const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ''
-    const batcher = createStreamBatcher(pendingId)
+    const batcher = createStreamBatcher(pendingId, sessionId)
     try {
       while (true) {
         const { value, done } = await reader.read()
@@ -650,19 +698,20 @@ export default function ChatApp() {
         const lines = buf.split('\n'); buf = lines.pop() || ''
         for (const line of lines) {
           if (!line.trim()) continue
+          if (!isActiveSession(sessionId)) return
           const ev = JSON.parse(line)
           if (ev.type === 'delta' && typeof ev.delta === 'string') {
             batcher.push(ev.delta)
           } else {
             batcher.flushNow()
-            applyStreamEvent(ev, pendingId, clientUserID)
+            applyStreamEvent(ev, pendingId, clientUserID, sessionId)
           }
         }
       }
-      if (buf.trim()) {
+      if (buf.trim() && isActiveSession(sessionId)) {
         const ev = JSON.parse(buf)
         if (ev.type === 'delta' && typeof ev.delta === 'string') batcher.push(ev.delta)
-        else { batcher.flushNow(); applyStreamEvent(ev, pendingId, clientUserID) }
+        else { batcher.flushNow(); applyStreamEvent(ev, pendingId, clientUserID, sessionId) }
       }
     } finally {
       batcher.flushNow()
@@ -693,21 +742,27 @@ export default function ChatApp() {
       const res = await fetch(`/api/chat/stream/${id}`, { signal: ctrl.signal })
       if (res.status === 204) return
       if (!res.ok) throw new Error(await res.text())
-      await readStream(res, pendingId)
-      await loadSessions(id)
+      await readStream(res, pendingId, '', id)
+      if (isActiveSession(id)) await loadSessions(id)
     } catch (e) {
-      if (e.name !== 'AbortError') setErr(e.message || String(e))
+      if (e.name !== 'AbortError' && isActiveSession(id)) setErr(e.message || String(e))
     } finally {
-      if (streamAbortRef.current === ctrl) { streamAbortRef.current = null; setBusy(false); setStreamingSid('') }
+      if (streamAbortRef.current === ctrl) {
+        streamAbortRef.current = null
+        if (isActiveSession(id)) { setBusy(false); setStreamingSid('') }
+      }
     }
   }
 
-  const loadChatState = async (id = '') => {
+  const loadChatState = async (id = '', openToken = openSeqRef.current) => {
     const st = await api(id ? `/api/chat/state/${id}` : '/api/chat/state')
+    if (openToken !== openSeqRef.current || !isActiveSession(id)) return
     const nextLlms = st.llms || []
     const nextNo = st.settings?.llm_no ?? st.llm_no ?? nextLlms[0]?.index ?? 0
+    const nextToolsMode = st.settings?.tools_mode === 'fixed' ? 'fixed' : 'official'
     setLlms(nextLlms)
     setLlmNo(nextLlms.some(m => m.index === nextNo) ? nextNo : (nextLlms[0]?.index ?? 0))
+    setToolsMode(nextToolsMode)
     if (id && st.running) {
       attachRunningStream(id)
     } else if (id && streamingSid && streamingSid !== id) {
@@ -719,16 +774,33 @@ export default function ChatApp() {
   }
 
   const openSession = async (id, refreshList = true) => {
+    const openToken = ++openSeqRef.current
+    activeSidRef.current = id
+    streamAbortRef.current?.abort?.()
+    streamAbortRef.current = null
+    scrollModeRef.current = 'auto'
+    setSid(id)
+    setBusy(false)
+    setStreamingSid('')
+    setAutoFollow(true)
+    setShowFollow(false)
     const d = await api(`/api/chat/session/${id}`)
+    if (openToken !== openSeqRef.current || activeSidRef.current !== id) return
+    activeSidRef.current = d.id
     setSid(d.id)
+    scrollModeRef.current = 'auto'
     setMessages(d.messages || [])
+    setRawHistory(Array.isArray(d.raw_history) ? d.raw_history : [])
+    setHistoryInfo(Array.isArray(d.history_info) ? d.history_info : [])
+    setWorkingState(d.working || null)
     setLlmNo(d.settings?.llm_no || 0)
+    setToolsMode(d.settings?.tools_mode === 'fixed' ? 'fixed' : 'official')
     setErr('')
     setNotice('')
     setMenuOpen('')
     setMenuPos(null)
     if (refreshList) setSessions(xs => xs.map(x => x.id === d.id ? { ...x, title: d.title, count: d.messages?.length || x.count, updated_at: d.updated_at || x.updated_at } : x))
-    await loadChatState(d.id)
+    await loadChatState(d.id, openToken)
   }
 
   const loadSessions = async (prefer = sid, options = {}) => {
@@ -739,18 +811,24 @@ export default function ChatApp() {
     if (open) {
       const next = prefer || list[0]?.id || ''
       if (next) await openSession(next, false)
-      else await loadChatState('')
+      else await loadChatState('', openSeqRef.current)
     } else if (!prefer && !sid) {
-      await loadChatState('')
+      await loadChatState('', openSeqRef.current)
     }
     return list
   }
 
   const newSession = async () => {
+    const openToken = ++openSeqRef.current
+    streamAbortRef.current?.abort?.()
+    streamAbortRef.current = null
     const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
+    if (openToken !== openSeqRef.current) return
+    activeSidRef.current = d.id
+    scrollModeRef.current = 'auto'
     setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
-    setSid(d.id); setMessages([]); setPrompt(''); setErr(''); setNotice('已创建新对话'); setLlmNo(d.settings?.llm_no || 0)
-    await loadChatState(d.id)
+    setSid(d.id); setMessages([]); setRawHistory([]); setHistoryInfo([]); setWorkingState(null); setContextOpen(false); setPrompt(''); setErr(''); setNotice('已创建新对话'); setBusy(false); setStreamingSid(''); setAutoFollow(false); setShowFollow(false); setLlmNo(d.settings?.llm_no || 0); setToolsMode(d.settings?.tools_mode === 'fixed' ? 'fixed' : 'official')
+    await loadChatState(d.id, openToken)
   }
 
   const deleteSession = async (id) => {
@@ -759,7 +837,14 @@ export default function ChatApp() {
     setSessions(xs => xs.filter(x => x.id !== id))
     setMenuOpen('')
     setMenuPos(null)
-    if (id === sid) { setSid(''); setMessages([]); setNotice('会话已删除') }
+    if (id === sid) {
+      ++openSeqRef.current
+      activeSidRef.current = ''
+      streamAbortRef.current?.abort?.()
+      streamAbortRef.current = null
+      scrollModeRef.current = 'auto'
+      setSid(''); setMessages([]); setBusy(false); setStreamingSid(''); setAutoFollow(true); setShowFollow(false); setNotice('会话已删除')
+    }
     setTimeout(() => loadSessions('', { open:true }).catch(()=>{}), 0)
   }
 
@@ -775,8 +860,34 @@ export default function ChatApp() {
   const saveModel = async (next) => {
     setLlmNo(next)
     if (!sid) return
-    await api(`/api/chat/settings/${sid}`, { method:'POST', body: JSON.stringify({ llm_no: next }) })
+    await api(`/api/chat/settings/${sid}`, { method:'POST', body: JSON.stringify({ llm_no: next, tools_mode: toolsMode }) })
     setNotice('模型已切换')
+  }
+
+  const setToolsModeTo = async (next) => {
+    if (next === toolsMode) { setToolsMenuOpen(false); return }
+    const prev = toolsMode
+    setToolsMode(next)
+    setToolsMenuOpen(false)
+    if (!sid) return
+    try {
+      await api(`/api/chat/settings/${sid}`, { method:'POST', body: JSON.stringify({ llm_no: llmNo, tools_mode: next }) })
+      setNotice(next === 'fixed' ? '已设为自动注入：每次发消息都带上工具' : '已设为官方行为：会话开始按 GA 默认方式注入工具，需要时可点“立即注入一次”')
+    } catch (e) {
+      setToolsMode(prev)
+      setErr(e.message || String(e))
+    }
+  }
+
+  const reinjectTools = async () => {
+    if (!sid) return
+    if (isCurrentRunning) { setNotice('当前正在执行，完成后再重注入 Tools'); return }
+    try {
+      const d = await api(`/api/chat/reinject-tools/${sid}`, { method:'POST' })
+      setNotice(d?.message || 'Tools 已重注入')
+    } catch (e) {
+      setErr(e.message || String(e))
+    }
   }
 
   const addImageFiles = async (fileList) => {
@@ -875,6 +986,7 @@ export default function ChatApp() {
     const files = (item.files || []).map(({ name, type, dataURL }) => ({ name, type, dataURL }))
     if (!text && !files.length) return
     const runToken = ++runSeqRef.current
+    const openToken = openSeqRef.current
     const ctrl = new AbortController()
     streamAbortRef.current?.abort?.()
     streamAbortRef.current = ctrl
@@ -883,7 +995,13 @@ export default function ChatApp() {
     try {
       if (!id) {
         const d = await api('/api/chat/session/new', { method:'POST', body:'{}' })
-        id = d.id; setSid(id); setStreamingSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
+        if (runToken !== runSeqRef.current || openToken !== openSeqRef.current) return
+        id = d.id
+        activeSidRef.current = id
+        scrollModeRef.current = 'auto'
+        setSid(id); setStreamingSid(id); setSessions(xs => [{ id:d.id, title:d.title, updated_at:d.updated_at, count:0 }, ...xs])
+      } else if (!isActiveSession(id)) {
+        return
       }
       const clientUserID = `u-${Date.now()}`
       setStreamingSid(id)
@@ -892,15 +1010,21 @@ export default function ChatApp() {
       const fileNote = files.length ? `\n\n[图片附件]\n${files.map(f => `- ${f.name}`).join('\n')}` : ''
       const optimistic = { id:clientUserID, role:'user', content:(text || '请分析这张图片') + fileNote, files, created_at:Math.floor(Date.now()/1000) }
       const pending = { id:`a-${Date.now()}`, role:'assistant', content:'', created_at:Math.floor(Date.now()/1000) }
-      setMessages(xs => [...xs, optimistic, pending])
-      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, signal: ctrl.signal, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: item.llmNo ?? llmNo }, client_user_id:clientUserID }) })
+      setRawHistory([]); setHistoryInfo([]); setWorkingState(null)
+      if (!isActiveSession(id)) return
+      activeSidRef.current = id
+      setMessages(xs => isActiveSession(id) ? [...xs, optimistic, pending] : xs)
+      const res = await fetch(`/api/chat/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, signal: ctrl.signal, body: JSON.stringify({ prompt:text || '请分析这张图片', files, settings:{ llm_no: item.llmNo ?? llmNo, tools_mode: item.toolsMode || toolsMode }, client_user_id:clientUserID }) })
       if (!res.ok) throw new Error(await res.text())
-      await readStream(res, pending.id, clientUserID)
+      await readStream(res, pending.id, clientUserID, id)
     } catch (e) {
-      if (runToken === runSeqRef.current && e?.name !== 'AbortError') setErr(e.message || String(e))
+      if (runToken === runSeqRef.current && openToken === openSeqRef.current && e?.name !== 'AbortError' && isActiveSession(id)) setErr(e.message || String(e))
     } finally {
-      if (runToken !== runSeqRef.current) return
-      if (id) await loadSessions(id).catch(()=>{})
+      if (runToken !== runSeqRef.current || openToken !== openSeqRef.current || !isActiveSession(id)) return
+      if (id) {
+        await loadSessions(id).catch(()=>{})
+        await openSession(id, false).catch(()=>{})
+      }
       const next = popQueued()
       if (next) {
         setNotice(`继续发送队列消息（剩余 ${Math.max(queuedRef.current.length, 0)} 条）`)
@@ -925,7 +1049,7 @@ export default function ChatApp() {
       return
     }
     if (!text && !files.length) return
-    const item = { text, files, llmNo }
+    const item = { text, files, llmNo, toolsMode }
     setPrompt(''); setAttachments([])
     if (busy) {
       enqueueMessage(item)
@@ -958,11 +1082,20 @@ export default function ChatApp() {
 
   useEffect(() => { loadSessions('', { open:true }).catch(e=>setErr(e.message)); return () => streamAbortRef.current?.abort?.() }, [])
 
-  const scrollToThreadEnd = (behavior = 'smooth') => endRef.current?.scrollIntoView({ behavior, block:'end' })
+  useEffect(() => {
+    if (!toolsMenuOpen) return
+    const onDown = (e) => { if (!toolsMenuRef.current?.contains(e.target)) setToolsMenuOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setToolsMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [toolsMenuOpen])
+
+  const scrollToThreadEnd = (behavior = 'auto') => endRef.current?.scrollIntoView({ behavior, block:'end' })
   const resumeFollow = () => {
     setAutoFollow(true)
     setShowFollow(false)
-    scrollToThreadEnd('smooth')
+    scrollToThreadEnd('auto')
   }
   const updateFollowFromScroll = () => {
     const near = isNearBottom(threadRef.current)
@@ -978,7 +1111,9 @@ export default function ChatApp() {
 
   useEffect(() => {
     if (autoFollow) {
-      scrollToThreadEnd('smooth')
+      const behavior = scrollModeRef.current || 'auto'
+      scrollModeRef.current = 'auto'
+      scrollToThreadEnd(behavior)
     } else if (!isNearBottom(threadRef.current)) {
       setShowFollow(true)
     }
@@ -987,8 +1122,8 @@ export default function ChatApp() {
   useGSAP(() => {
     if (prefersReducedMotion()) return
     const q = gsap.utils.selector(chatScope)
-    gsap.from(q('.oa-sidebar'), { x: -24, autoAlpha: 0, duration: 0.52, ease: 'power3.out' })
-    gsap.from(q('.oa-topbar, .oa-thread, .oa-composer-wrap'), { y: 18, autoAlpha: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out' })
+    gsap.from(q('.oa-sidebar'), { x: -24, autoAlpha: 0, duration: 0.52, ease: 'power3.out', clearProps: 'transform,opacity,visibility' })
+    gsap.from(q('.oa-topbar, .oa-thread, .oa-composer-wrap'), { y: 18, autoAlpha: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out', clearProps: 'transform,opacity,visibility' })
   }, { scope: chatScope })
 
   useGSAP(() => {
@@ -1000,6 +1135,16 @@ export default function ChatApp() {
   const activeModel = llms.find(x => x.index === llmNo) || llms[0]
   const selectedModelNo = activeModel?.index ?? llmNo
   const isCurrentRunning = busy && streamingSid === sid
+  const isFixedToolsMode = toolsMode === 'fixed'
+  const contextJson = useMemo(() => JSON.stringify({ raw_history: rawHistory || [], history_info: historyInfo || [], working: workingState || {} }, null, 2), [rawHistory, historyInfo, workingState])
+  const copyContext = async () => {
+    try {
+      await navigator.clipboard.writeText(contextJson)
+      setNotice('模型上下文 JSON 已复制')
+    } catch {
+      setErr('复制失败，请手动选择 JSON')
+    }
+  }
 
   return <div ref={chatScope} className={`oa-chat ${collapsed ? 'is-collapsed' : ''}`}>
     <aside className={`oa-sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -1048,9 +1193,23 @@ export default function ChatApp() {
           <button className="oa-icon-btn oa-collapsed-new" onClick={newSession} title="新对话" aria-label="新对话"><MessageSquarePlus size={18}/></button>
         </div>}
         <div className="oa-title"><b>{current ? shortTitle(current) : '新对话'}</b><span>ChatGPT-style workspace for GenericAgent</span></div>
+        <button className={`oa-context-btn ${contextOpen ? 'is-open' : ''}`} type="button" onClick={()=>setContextOpen(v=>!v)} disabled={!sid} title="查看发给模型的 raw_history">
+          <PanelRightOpen size={16}/>上下文<span>{rawHistory?.length || 0}</span>
+        </button>
       </header>
 
-      {(err || notice) && <div className={`oa-banner ${err ? 'error' : ''}`}>{err || notice}</div>}
+      {contextOpen && <aside className="oa-context-drawer" aria-label="模型上下文">
+        <div className="oa-context-head">
+          <div><b>模型上下文</b><span>agent.llmclient.backend.history 完成后的快照</span></div>
+          <div className="oa-context-actions"><button type="button" onClick={copyContext}>复制 JSON</button><button type="button" onClick={()=>setContextOpen(false)} aria-label="关闭上下文"><X size={15}/></button></div>
+        </div>
+        <div className="oa-context-json-tree"><JsonTree data={{ raw_history: rawHistory || [], history_info: historyInfo || [], working: workingState || {} }} /></div>
+        <details className="oa-context-raw"><summary>原始 JSON</summary><pre className="oa-context-raw-json">{contextJson}</pre></details>
+      </aside>}
+
+      <div className="oa-banner-slot" aria-live="polite">
+        {(err || notice) && <div className={`oa-banner ${err ? 'error' : ''}`}>{err || notice}</div>}
+      </div>
 
       <section className="oa-thread" ref={threadRef} onScroll={updateFollowFromScroll} onWheel={e=>{ if (e.deltaY < 0) breakFollow() }} onTouchMove={breakFollow}>
         {messages.length === 0 && <div className="oa-empty">
@@ -1097,6 +1256,34 @@ export default function ChatApp() {
           <textarea ref={promptRef} value={prompt} onPaste={onPaste} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder="向 GenericAgent 发送消息，可粘贴/拖拽图片…" rows={1}/>
           <div className="oa-composer-bar">
             <button className="oa-attach-btn" type="button" onClick={()=>fileRef.current?.click()} title="添加图片"><ImagePlus size={17}/><span>图片</span></button>
+            <div className="oa-tools-menu" ref={toolsMenuRef}>
+              <button className={`oa-tools-trigger ${toolsMenuOpen ? 'is-open' : ''}`} type="button" disabled={!sid} onClick={()=>setToolsMenuOpen(o=>!o)} aria-haspopup="menu" aria-expanded={toolsMenuOpen} title="工具注入设置">
+                <Wrench size={16}/><span>工具</span>{isFixedToolsMode && <span className="oa-tools-state">自动</span>}<ChevronDown size={14}/>
+              </button>
+              {toolsMenuOpen && (
+                <div className="oa-tools-pop" role="menu">
+                  <div className="oa-tools-pop-head">工具注入方式</div>
+                  <button className={`oa-tools-opt ${!isFixedToolsMode ? 'is-active' : ''}`} type="button" role="menuitemradio" aria-checked={!isFixedToolsMode} onClick={()=>setToolsModeTo('official')}>
+                    <Wrench size={16}/>
+                    <span className="oa-tools-opt-text"><b>官方行为<span className="oa-tools-tag">默认</span></b><small>会话开始按 GA 默认方式注入工具，需要时再点“立即注入一次”</small></span>
+                    {!isFixedToolsMode && <Check size={16}/>}
+                  </button>
+                  <button className={`oa-tools-opt ${isFixedToolsMode ? 'is-active' : ''}`} type="button" role="menuitemradio" aria-checked={isFixedToolsMode} onClick={()=>setToolsModeTo('fixed')}>
+                    <Pin size={16}/>
+                    <span className="oa-tools-opt-text"><b>自动注入</b><small>每次发消息都自动带上工具</small></span>
+                    {isFixedToolsMode && <Check size={16}/>}
+                  </button>
+                  {!isFixedToolsMode && (
+                    <>
+                      <div className="oa-tools-pop-sep"/>
+                      <button className="oa-tools-act" type="button" disabled={!sid || isCurrentRunning} onClick={()=>{ setToolsMenuOpen(false); reinjectTools() }}>
+                        <RefreshCw size={15}/><span>立即注入一次</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <label className="oa-model-select oa-composer-model"><span>{activeModel ? '模型' : '模型不可用'}</span><select value={selectedModelNo} disabled={!llms.length} onChange={e=>saveModel(Number(e.target.value))}>
               {llms.length ? llms.map(m => <option key={m.index} value={m.index}>{modelLabel(m)}</option>) : <option value={0}>未发现模型</option>}
             </select><ChevronDown size={14}/></label>
@@ -1104,7 +1291,7 @@ export default function ChatApp() {
             {isCurrentRunning && <button className="oa-stop" type="button" onClick={()=>cancelRun(sid)} title="停止生成" aria-label="停止生成"><Square size={14}/></button>}
           </div>
         </div>
-        <p>Enter 发送 · Shift + Enter 换行 · 回复中发送会排队，引导可立即插队</p>
+        <p>Enter 发送 · Shift + Enter 换行 · 回复中发送会排队 · 工具：{isFixedToolsMode ? '每次自动注入' : '官方默认'}</p>
       </footer>
     </main>
   </div>

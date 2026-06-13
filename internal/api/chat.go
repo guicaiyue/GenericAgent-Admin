@@ -31,15 +31,35 @@ type chatMessage struct {
 	Error     bool                     `json:"error,omitempty"`
 }
 
+const (
+	chatToolsModeOfficial = "official"
+	chatToolsModeFixed    = "fixed"
+)
+
 type chatSettings struct {
-	LLMNo int `json:"llm_no"`
+	LLMNo     int    `json:"llm_no"`
+	ToolsMode string `json:"tools_mode,omitempty"`
 }
+
+func normalizeChatSettings(st chatSettings) chatSettings {
+	switch st.ToolsMode {
+	case chatToolsModeFixed:
+		// keep
+	default:
+		st.ToolsMode = chatToolsModeOfficial
+	}
+	return st
+}
+
 type chatSession struct {
-	ID        string        `json:"id"`
-	Title     string        `json:"title"`
-	UpdatedAt int64         `json:"updated_at"`
-	Messages  []chatMessage `json:"messages"`
-	Settings  chatSettings  `json:"settings"`
+	ID          string                   `json:"id"`
+	Title       string                   `json:"title"`
+	UpdatedAt   int64                    `json:"updated_at"`
+	Messages    []chatMessage            `json:"messages"`
+	Settings    chatSettings             `json:"settings"`
+	RawHistory  []map[string]interface{} `json:"raw_history,omitempty"`
+	HistoryInfo []interface{}            `json:"history_info,omitempty"`
+	Working     map[string]interface{}   `json:"working,omitempty"`
 }
 
 const (
@@ -51,6 +71,10 @@ const (
 	// above maxChatUploadBytesTotal. The decoded raw size is still capped by
 	// saveChatUploads, so this only governs the transport payload size.
 	maxChatPostBodyBytes = 64 << 20
+	// Worker stdout is NDJSON, but a single final/error event can contain a large
+	// assistant answer. bufio.Scanner hard-limits tokens unless configured and
+	// drops data above that limit, so runChatWorker uses readChatWorkerLine instead.
+	maxChatWorkerLineBytes = 128 << 20
 )
 
 type chatUpload struct{ Name, Type, DataURL string }
@@ -71,6 +95,7 @@ type chatWorker struct {
 	Stdout io.ReadCloser
 	Stderr io.ReadCloser
 	Dead   bool
+	Mu     sync.Mutex
 }
 
 func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]interface{}) {
@@ -85,6 +110,8 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		return
 	}
 	s.setChatRunCmd(sid, worker.Cmd)
+	worker.Mu.Lock()
+	defer worker.Mu.Unlock()
 	if err := json.NewEncoder(worker.Stdin).Encode(cmdReq); err != nil {
 		s.dropChatWorker(sid, worker)
 		msg := chatMessage{ID: newChatID(), Role: "assistant", Content: fmt.Sprintf("提交失败：%v", err), CreatedAt: time.Now().Unix(), Error: true}
@@ -95,25 +122,51 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 		s.endChatRun(sid)
 		return
 	}
-	scanner := bufio.NewScanner(worker.Stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	reader := bufio.NewReaderSize(worker.Stdout, 64*1024)
 	var final chatMessage
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
+	var finalRawHistory []map[string]interface{}
+	var finalHistoryInfo []interface{}
+	var finalWorking map[string]interface{}
+	var readErr error
+	for {
+		line, err := readChatWorkerLine(reader)
+		if len(bytes.TrimSpace(line)) == 0 {
+			if err != nil {
+				readErr = err
+				break
+			}
 			continue
 		}
+		line = bytes.TrimSpace(line)
 		var ev map[string]interface{}
 		if json.Unmarshal(line, &ev) != nil {
+			if err != nil {
+				readErr = err
+				break
+			}
 			continue
 		}
 		if msg, ok := ev["message"].(map[string]interface{}); ok && (ev["type"] == "done" || ev["type"] == "error") {
 			b, _ := json.Marshal(msg)
 			_ = json.Unmarshal(b, &final)
-			s.publishChatLine(sid, line)
+			finalRawHistory = chatRawHistoryFromEvent(ev)
+			finalHistoryInfo = chatHistoryInfoFromEvent(ev)
+			finalWorking = chatWorkingFromEvent(ev)
+			delete(ev, "raw_history")
+			delete(ev, "history_info")
+			delete(ev, "working")
+			if cleanLine, err := json.Marshal(ev); err == nil {
+				s.publishChatLine(sid, cleanLine)
+			} else {
+				s.publishChatLine(sid, line)
+			}
 			break
 		}
 		s.publishChatLine(sid, line)
+		if err != nil {
+			readErr = err
+			break
+		}
 	}
 	if final.ID == "" {
 		partial := s.chatRunPartialContent(sid)
@@ -127,8 +180,8 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 			final = chatMessage{ID: newChatID(), Role: "assistant", Content: content, CreatedAt: time.Now().Unix(), Error: true}
 			s.publishChatRun(sid, map[string]interface{}{"type": "error", "message": final})
 		} else {
-			err := scanner.Err()
-			if err == nil {
+			err := readErr
+			if err == nil || err == io.EOF {
 				err = fmt.Errorf("worker exited before done")
 			}
 			s.dropChatWorker(sid, worker)
@@ -142,7 +195,23 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 			s.publishChatRun(sid, map[string]interface{}{"type": "error", "message": final})
 		}
 	}
+	var fallbackMessages []chatMessage
+	if len(cs.Messages) > 0 {
+		fallbackMessages = append(fallbackMessages, cs.Messages[len(cs.Messages)-1])
+	}
+	fallbackMessages = append(fallbackMessages, final)
 	cs.Messages = append(cs.Messages, final)
+	if len(finalRawHistory) > 0 {
+		cs.RawHistory = finalRawHistory
+	} else {
+		cs.RawHistory = appendChatRawHistoryFallback(cs.RawHistory, fallbackMessages...)
+	}
+	if finalHistoryInfo != nil {
+		cs.HistoryInfo = finalHistoryInfo
+	}
+	if finalWorking != nil {
+		cs.Working = finalWorking
+	}
 	cs.UpdatedAt = time.Now().Unix()
 	_ = saveChatSession(s.CfgStore.Cfg, cs)
 	if final.Error {
@@ -153,11 +222,112 @@ func (s *Server) runChatWorker(sid string, cs chatSession, cmdReq map[string]int
 	s.endChatRun(sid)
 }
 
+func chatRawHistoryFromEvent(ev map[string]interface{}) []map[string]interface{} {
+	items, ok := ev["raw_history"].([]interface{})
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		if m, ok := item.(map[string]interface{}); ok {
+			out = append(out, m)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func chatHistoryInfoFromEvent(ev map[string]interface{}) []interface{} {
+	items, ok := ev["history_info"].([]interface{})
+	if !ok {
+		return nil
+	}
+	return append([]interface{}(nil), items...)
+}
+
+func chatWorkingFromEvent(ev map[string]interface{}) map[string]interface{} {
+	m, ok := ev["working"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func appendChatRawHistoryFallback(raw []map[string]interface{}, messages ...chatMessage) []map[string]interface{} {
+	out := append([]map[string]interface{}(nil), raw...)
+	for _, msg := range messages {
+		text := strings.TrimSpace(msg.Content)
+		if text == "" {
+			continue
+		}
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if role != "assistant" && role != "system" {
+			role = "user"
+		}
+		out = append(out, map[string]interface{}{
+			"role": role,
+			"content": []map[string]interface{}{{
+				"type": "text",
+				"text": text,
+			}},
+		})
+	}
+	return out
+}
+
+func chatSessionForClient(cs chatSession) chatSession {
+	return cs
+}
+
 func (s *Server) chatRunActive(sid string) bool {
 	s.ChatMu.Lock()
 	defer s.ChatMu.Unlock()
 	r := s.ChatRuns[safeChatID(sid)]
 	return r != nil && !r.Done
+}
+
+func (s *Server) reinjectChatWorkerTools(sid string) (map[string]interface{}, error) {
+	sid = safeChatID(sid)
+	worker, err := s.getChatWorker(sid)
+	if err != nil {
+		return nil, err
+	}
+	worker.Mu.Lock()
+	defer worker.Mu.Unlock()
+	if err := json.NewEncoder(worker.Stdin).Encode(map[string]interface{}{"op": "reinject_tools", "ga_root": s.CfgStore.Cfg.GARoot}); err != nil {
+		s.dropChatWorker(sid, worker)
+		return nil, err
+	}
+	reader := bufio.NewReaderSize(worker.Stdout, 64*1024)
+	for {
+		line, err := readChatWorkerLine(reader)
+		if len(bytes.TrimSpace(line)) == 0 {
+			if err != nil {
+				s.dropChatWorker(sid, worker)
+				return nil, err
+			}
+			continue
+		}
+		var ev map[string]interface{}
+		if json.Unmarshal(bytes.TrimSpace(line), &ev) == nil {
+			if ev["type"] == "reinject_tools" {
+				return ev, nil
+			}
+			if ev["type"] == "error" {
+				return ev, nil
+			}
+		}
+		if err != nil {
+			s.dropChatWorker(sid, worker)
+			return nil, err
+		}
+	}
 }
 
 func (s *Server) beginChatRun(sid string) bool {
@@ -317,8 +487,15 @@ func (s *Server) finishChatError(w http.ResponseWriter, enc *json.Encoder, flush
 	}
 }
 
-func (s *Server) listGARuntimeLLMs(root string) ([]map[string]interface{}, error) {
-	py := pythonForRoot(root)
+func chatPythonForConfig(cfg config.AppConfig) string {
+	// Chat must honor the Python selected during setup. Falling back to a bare
+	// launcher can miss GA dependencies (for example requests) and hide models.
+	return resolvePythonForRoot(cfg.GARoot, cfg.PythonPath)
+}
+
+func (s *Server) listGARuntimeLLMs(cfg config.AppConfig) ([]map[string]interface{}, error) {
+	root := cfg.GARoot
+	py := chatPythonForConfig(cfg)
 	code := `import json, os, sys
 root = sys.argv[1]
 if root not in sys.path:
@@ -336,7 +513,7 @@ print(json.dumps(items, ensure_ascii=False))`
 	cmd := exec.Command(py, "-c", code, root)
 	cmd.Dir = root
 	hideChildWindow(cmd)
-	cmd.Env = pythonEnvWithAdminProxy(s.CfgStore.Cfg, "PYTHONUNBUFFERED=1", "PYTHONUTF8=1", "PYTHONIOENCODING=utf-8")
+	cmd.Env = pythonEnvWithAdminProxy(cfg, "PYTHONUNBUFFERED=1", "PYTHONUTF8=1", "PYTHONIOENCODING=utf-8")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return []map[string]interface{}{}, fmt.Errorf("list GA LLMs failed: %v: %s", err, strings.TrimSpace(string(out)))
@@ -465,7 +642,7 @@ func (s *Server) dropChatWorker(sid string, worker *chatWorker) {
 
 func startChatWorker(cfg config.AppConfig, sid string) (*chatWorker, error) {
 	root := cfg.GARoot
-	py := pythonForRoot(root)
+	py := chatPythonForConfig(cfg)
 	script, err := resolveChatWorkerScript()
 	if err != nil {
 		return nil, err
@@ -665,7 +842,7 @@ func loadChatSession(cfg config.AppConfig, sid string) (chatSession, error) {
 		return chatSession{}, err
 	}
 	sid = safeChatID(sid)
-	cs := chatSession{ID: sid, Title: "新会话", Messages: []chatMessage{}, Settings: chatSettings{}}
+	cs := chatSession{ID: sid, Title: "新会话", Messages: []chatMessage{}, Settings: normalizeChatSettings(chatSettings{})}
 	b, err := os.ReadFile(chatSessionPath(cfg, sid))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -682,6 +859,10 @@ func loadChatSession(cfg config.AppConfig, sid string) (chatSession, error) {
 	if cs.Messages == nil {
 		cs.Messages = []chatMessage{}
 	}
+	if cs.RawHistory == nil {
+		cs.RawHistory = []map[string]interface{}{}
+	}
+	cs.Settings = normalizeChatSettings(cs.Settings)
 	return cs, nil
 }
 func saveChatSession(cfg config.AppConfig, cs chatSession) error {
@@ -691,6 +872,7 @@ func saveChatSession(cfg config.AppConfig, cs chatSession) error {
 	if err := os.MkdirAll(chatSessionDir(cfg), 0755); err != nil {
 		return err
 	}
+	cs.Settings = normalizeChatSettings(cs.Settings)
 	cs.UpdatedAt = time.Now().Unix()
 	b, _ := json.MarshalIndent(cs, "", "  ")
 	return writeChatFileAtomic(chatSessionPath(cfg, cs.ID), b, 0644)
@@ -728,6 +910,21 @@ func writeChatFileAtomic(path string, data []byte, perm os.FileMode) (err error)
 	}
 	return os.Rename(tmpName, path)
 }
+func readChatWorkerLine(r *bufio.Reader) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > maxChatWorkerLineBytes {
+			return line, fmt.Errorf("chat worker line too large: %d > %d bytes", len(line), maxChatWorkerLineBytes)
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return line, err
+	}
+}
+
 func updateChatTitle(cs *chatSession) {
 	if cs.Title != "" && cs.Title != "新会话" {
 		return
@@ -744,7 +941,7 @@ func updateChatTitle(cs *chatSession) {
 	}
 }
 
-func saveChatUploads(cfg config.AppConfig, files []chatUpload) ([]map[string]interface{}, []string, error) {
+func saveChatUploads(cfg config.AppConfig, files []chatUpload) (saved []map[string]interface{}, refs []string, err error) {
 	if len(files) == 0 {
 		return nil, nil, nil
 	}
@@ -757,8 +954,15 @@ func saveChatUploads(cfg config.AppConfig, files []chatUpload) ([]map[string]int
 	if err := os.MkdirAll(chatUploadDir(cfg), 0755); err != nil {
 		return nil, nil, err
 	}
-	var saved []map[string]interface{}
-	var refs []string
+	created := []string{}
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, path := range created {
+			_ = os.Remove(path)
+		}
+	}()
 	totalBytes := 0
 	for _, f := range files {
 		name := sanitizeChatUploadName(f.Name)
@@ -766,9 +970,9 @@ func saveChatUploads(cfg config.AppConfig, files []chatUpload) ([]map[string]int
 		if i := strings.Index(data, ","); i >= 0 {
 			data = data[i+1:]
 		}
-		raw, err := base64.StdEncoding.DecodeString(data)
-		if err != nil {
-			return nil, nil, fmt.Errorf("decode %s: %w", name, err)
+		raw, decodeErr := base64.StdEncoding.DecodeString(data)
+		if decodeErr != nil {
+			return nil, nil, fmt.Errorf("decode %s: %w", name, decodeErr)
 		}
 		if len(raw) > maxChatUploadBytesPerFile {
 			return nil, nil, fmt.Errorf("upload %s too large: %d > %d bytes", name, len(raw), maxChatUploadBytesPerFile)
@@ -779,14 +983,25 @@ func saveChatUploads(cfg config.AppConfig, files []chatUpload) ([]map[string]int
 		}
 		name = fmt.Sprintf("%d_%s", time.Now().UnixNano(), name)
 		target := filepath.Join(chatUploadDir(cfg), name)
-		if err := writeChatFileAtomic(target, raw, 0644); err != nil {
-			return nil, nil, err
+		if writeErr := writeChatFileAtomic(target, raw, 0644); writeErr != nil {
+			return nil, nil, writeErr
 		}
-		meta := map[string]interface{}{"path": target, "name": name, "mime": f.Type, "url": "/api/chat/file/" + name}
+		created = append(created, target)
+		mime := strings.TrimSpace(f.Type)
+		meta := map[string]interface{}{"path": target, "name": name, "mime": mime, "url": "/api/chat/file/" + name}
 		saved = append(saved, meta)
-		refs = append(refs, "[FILE:"+target+"]")
+		refs = append(refs, chatUploadPromptRef(target, name, mime))
 	}
 	return saved, refs, nil
+}
+
+func chatUploadPromptRef(path, name, mime string) string {
+	lowerMime := strings.ToLower(strings.TrimSpace(mime))
+	lowerName := strings.ToLower(strings.TrimSpace(name))
+	if strings.HasPrefix(lowerMime, "image/") || strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpg") || strings.HasSuffix(lowerName, ".jpeg") || strings.HasSuffix(lowerName, ".gif") || strings.HasSuffix(lowerName, ".webp") || strings.HasSuffix(lowerName, ".bmp") {
+		return "[image:" + path + "]"
+	}
+	return "[FILE:" + path + "]"
 }
 
 func sanitizeChatUploadName(name string) string {

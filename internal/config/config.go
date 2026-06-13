@@ -10,24 +10,25 @@ import (
 )
 
 type AppConfig struct {
-	GARoot           string   `json:"ga_root"`
-	ChatDataDir      string   `json:"chat_data_dir"`
-	Host             string   `json:"host"`
-	Port             int      `json:"port"`
-	LogTailLines     int      `json:"log_tail_lines"`
-	BufferLines      int      `json:"buffer_lines"`
-	PythonPath       string   `json:"python_path"`
-	ProxyMode        string   `json:"proxy_mode"` // off | system | custom
-	HTTPProxy        string   `json:"http_proxy"`
-	HTTPSProxy       string   `json:"https_proxy"`
-	AllProxy         string   `json:"all_proxy"`
-	NoProxy          string   `json:"no_proxy"`
-	ServiceAutostart []string `json:"service_autostart"`
+	GARoot             string   `json:"ga_root"`
+	ChatDataDir        string   `json:"chat_data_dir"`
+	Host               string   `json:"host"`
+	Port               int      `json:"port"`
+	LogTailLines       int      `json:"log_tail_lines"`
+	BufferLines        int      `json:"buffer_lines"`
+	PythonPath         string   `json:"python_path"`
+	ProxyMode          string   `json:"proxy_mode"` // off | system | custom
+	HTTPProxy          string   `json:"http_proxy"`
+	HTTPSProxy         string   `json:"https_proxy"`
+	AllProxy           string   `json:"all_proxy"`
+	NoProxy            string   `json:"no_proxy"`
+	ServiceAutostart   []string `json:"service_autostart"`
+	DesktopPetDisabled bool     `json:"desktop_pet_disabled"`
 }
 
 func Validate(cfg AppConfig) error {
-	if cfg.Port < 0 {
-		return fmt.Errorf("port must be positive")
+	if cfg.Port < 0 || cfg.Port > 65535 {
+		return fmt.Errorf("port must be between 0 and 65535")
 	}
 	if cfg.LogTailLines < 0 {
 		return fmt.Errorf("log_tail_lines must be positive")
@@ -155,6 +156,9 @@ func (s *Store) Load() error {
 	}
 	if cfg.ProxyMode == "" {
 		cfg.ProxyMode = "off"
+	}
+	if err := Validate(cfg); err != nil {
+		return err
 	}
 	s.Cfg = cfg
 	return nil

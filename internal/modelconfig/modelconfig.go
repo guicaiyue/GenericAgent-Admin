@@ -15,6 +15,43 @@ import (
 	"time"
 )
 
+type OptionalBool bool
+
+func (b *OptionalBool) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	var raw interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch v := raw.(type) {
+	case bool:
+		*b = OptionalBool(v)
+		return nil
+	case string:
+		parsed := parseOptionalBoolString(v)
+		*b = OptionalBool(parsed)
+		return nil
+	default:
+		return fmt.Errorf("fake_cc_system_prompt must be a boolean or boolean string")
+	}
+}
+
+func parseOptionalBoolString(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false", "f", "no", "n", "off":
+		return false
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	default:
+		// Preserve the old string-field behavior for legacy non-empty values:
+		// GA treats any non-empty fake_cc_system_prompt value as enabled.
+		return true
+	}
+}
+
 type Profile struct {
 	VarName            string                 `json:"var_name"`
 	Type               string                 `json:"type"`
@@ -30,7 +67,7 @@ type Profile struct {
 	APIMode            string                 `json:"api_mode,omitempty"`
 	ThinkingType       string                 `json:"thinking_type,omitempty"`
 	ReasoningEffort    string                 `json:"reasoning_effort,omitempty"`
-	FakeCCSystemPrompt string                 `json:"fake_cc_system_prompt,omitempty"`
+	FakeCCSystemPrompt *OptionalBool          `json:"fake_cc_system_prompt,omitempty"`
 	Extra              map[string]interface{} `json:"extra,omitempty"`
 }
 
@@ -44,6 +81,24 @@ var nameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func NewStore(root string) *Store { return &Store{Root: root} }
 func (s *Store) path() string     { return filepath.Join(s.Root, "model_profiles.json") }
+
+func unsafeGARoot(p string) bool {
+	clean := filepath.Clean(strings.TrimSpace(p))
+	if clean == "" || clean == "." {
+		return true
+	}
+	vol := filepath.VolumeName(clean)
+	rest := strings.TrimPrefix(clean, vol)
+	rest = filepath.Clean(rest)
+	return rest == "" || rest == "." || rest == string(filepath.Separator)
+}
+
+func validateExportRoot(gaRoot string) error {
+	if unsafeGARoot(gaRoot) {
+		return fmt.Errorf("ga_root must not be empty or a filesystem root")
+	}
+	return nil
+}
 
 func Defaults() []Profile {
 	b := true
@@ -76,15 +131,42 @@ func (s *Store) Load(raw bool) (Draft, error) {
 }
 
 func (s *Store) Save(profiles []Profile) (Draft, error) {
-	if err := Validate(profiles); err != nil {
+	merged, err := s.MergePreservedSecrets(profiles)
+	if err != nil {
 		return Draft{}, err
 	}
-	d := Draft{UpdatedAt: time.Now().Format(time.RFC3339), Profiles: profiles}
+	if err := Validate(merged); err != nil {
+		return Draft{}, err
+	}
+	d := Draft{UpdatedAt: time.Now().Format(time.RFC3339), Profiles: merged}
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return d, err
 	}
 	return d, writeFileAtomic(s.path(), data, 0600)
+}
+
+func (s *Store) MergePreservedSecrets(profiles []Profile) ([]Profile, error) {
+	old, err := s.Load(true)
+	if err != nil {
+		return nil, err
+	}
+	byVar := map[string]string{}
+	for _, p := range old.Profiles {
+		if p.VarName != "" && p.APIKey != "" && !IsMaskedSecret(p.APIKey) {
+			byVar[p.VarName] = p.APIKey
+		}
+	}
+	merged := make([]Profile, len(profiles))
+	copy(merged, profiles)
+	for i := range merged {
+		if merged[i].APIKey == "" {
+			if oldKey := byVar[merged[i].VarName]; oldKey != "" {
+				merged[i].APIKey = oldKey
+			}
+		}
+	}
+	return merged, nil
 }
 
 func writeFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
@@ -296,8 +378,8 @@ func Render(profiles []Profile) (string, error) {
 		if p.ReasoningEffort != "" {
 			m["reasoning_effort"] = p.ReasoningEffort
 		}
-		if p.FakeCCSystemPrompt != "" {
-			m["fake_cc_system_prompt"] = p.FakeCCSystemPrompt
+		if p.FakeCCSystemPrompt != nil {
+			m["fake_cc_system_prompt"] = bool(*p.FakeCCSystemPrompt)
 		}
 		for k, v := range p.Extra {
 			if _, ok := m[k]; !ok {
@@ -354,6 +436,9 @@ func pyVal(v interface{}) (string, error) {
 }
 
 func Export(gaRoot string, profiles []Profile, overwriteActive bool) (map[string]interface{}, error) {
+	if err := validateExportRoot(gaRoot); err != nil {
+		return nil, err
+	}
 	text, err := Render(profiles)
 	if err != nil {
 		return nil, err

@@ -1,12 +1,49 @@
 package modelconfig
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestProfileAcceptsBooleanFakeCCSystemPrompt(t *testing.T) {
+	data := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":true}]}`)
+	var draft Draft
+	if err := json.Unmarshal(data, &draft); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(draft.Profiles) != 1 || draft.Profiles[0].FakeCCSystemPrompt == nil || !bool(*draft.Profiles[0].FakeCCSystemPrompt) {
+		t.Fatalf("FakeCCSystemPrompt = %#v, want true", draft.Profiles)
+	}
+	rendered, err := Render(draft.Profiles)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(rendered, `"fake_cc_system_prompt": True`) {
+		t.Fatalf("rendered fake_cc_system_prompt not Python bool:\n%s", rendered)
+	}
+}
+
+func TestProfileAcceptsLegacyStringFakeCCSystemPrompt(t *testing.T) {
+	data := []byte(`{"profiles":[{"var_name":"api_config_main","type":"native_claude","name":"main","apibase":"https://api.example/v1","model":"claude-test","apikey":"sk-real-secret","fake_cc_system_prompt":"false"}]}`)
+	var draft Draft
+	if err := json.Unmarshal(data, &draft); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(draft.Profiles) != 1 || draft.Profiles[0].FakeCCSystemPrompt == nil || bool(*draft.Profiles[0].FakeCCSystemPrompt) {
+		t.Fatalf("FakeCCSystemPrompt = %#v, want false", draft.Profiles)
+	}
+	rendered, err := Render(draft.Profiles)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(rendered, `"fake_cc_system_prompt": False`) {
+		t.Fatalf("rendered fake_cc_system_prompt not Python false:\n%s", rendered)
+	}
+}
 
 func TestStoreSaveCreatesRootAndLoadsMaskedSecrets(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "missing", "models")
@@ -42,6 +79,37 @@ func TestStoreSaveCreatesRootAndLoadsMaskedSecrets(t *testing.T) {
 	}
 	if got := raw.Profiles[0].APIKey; got != "sk-real-secret" {
 		t.Fatalf("raw APIKey = %q", got)
+	}
+}
+
+func TestStoreSavePreservesExistingSecretWhenSubmittedBlank(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	profiles := []Profile{{
+		VarName: "api_config_main",
+		Type:    "openai",
+		Name:    "main",
+		APIBase: "https://api.example/v1",
+		Model:   "gpt-test",
+		APIKey:  "sk-real-secret",
+	}}
+	if _, err := store.Save(profiles); err != nil {
+		t.Fatalf("seed Save() error = %v", err)
+	}
+	profiles[0].APIKey = ""
+	profiles[0].Model = "gpt-updated"
+	if _, err := store.Save(profiles); err != nil {
+		t.Fatalf("Save(blank secret) error = %v", err)
+	}
+	raw, err := store.Load(true)
+	if err != nil {
+		t.Fatalf("Load(true) error = %v", err)
+	}
+	if got := raw.Profiles[0].APIKey; got != "sk-real-secret" {
+		t.Fatalf("preserved APIKey = %q, want old secret", got)
+	}
+	if got := raw.Profiles[0].Model; got != "gpt-updated" {
+		t.Fatalf("updated model = %q", got)
 	}
 }
 
@@ -134,6 +202,23 @@ func TestExportBacksUpExistingActive(t *testing.T) {
 	}
 	if string(activeData) == string(old) || !strings.Contains(string(activeData), "sk-real-secret") {
 		t.Fatalf("active not replaced with rendered key: %q", string(activeData))
+	}
+}
+
+func TestExportRejectsUnsafeGARoot(t *testing.T) {
+	profiles := []Profile{{
+		VarName: "api_config_main",
+		Type:    "openai",
+		Name:    "main",
+		APIBase: "https://api.example/v1",
+		Model:   "gpt-test",
+		APIKey:  "sk-real-secret",
+	}}
+	for _, root := range []string{"", ".", filepath.VolumeName(t.TempDir()) + string(filepath.Separator)} {
+		_, err := Export(root, profiles, false)
+		if err == nil || !strings.Contains(err.Error(), "filesystem root") {
+			t.Fatalf("Export(%q) error = %v, want filesystem root rejection", root, err)
+		}
 	}
 }
 
