@@ -1,0 +1,916 @@
+{
+  "files": {
+    "adb_ui.py": {
+      "name": "adb_ui.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/adb_ui.py",
+      "type": "tool",
+      "size": 3838,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "adguard_mihomo_sop.md": {
+      "name": "adguard_mihomo_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/adguard_mihomo_sop.md",
+      "type": "sop",
+      "size": 1175,
+      "mtime": 1781678115,
+      "mtime_h": "2026-06-17 14:35",
+      "layer": "L3",
+      "refs": [
+        "tgbot_sop.md"
+      ],
+      "refed_by": [
+        "tgbot_sop.md"
+      ]
+    },
+    "autonomous_operation_sop.md": {
+      "name": "autonomous_operation_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/autonomous_operation_sop.md",
+      "type": "sop",
+      "size": 2537,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "binance_api_skill.md": {
+      "name": "binance_api_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/binance_api_skill.md",
+      "type": "sop",
+      "size": 4557,
+      "mtime": 1782128640,
+      "mtime_h": "2026-06-22 19:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "cdp_screenshot.py": {
+      "name": "cdp_screenshot.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cdp_screenshot.py",
+      "type": "tool",
+      "size": 10424,
+      "mtime": 1782276395,
+      "mtime_h": "2026-06-24 12:46",
+      "layer": "L3",
+      "refs": [
+        "screenshot_upload.py"
+      ],
+      "refed_by": [
+        "cdp_screenshot_sop.md",
+        "tmwebdriver_sop.md",
+        "vision_sop.md"
+      ]
+    },
+    "cdp_screenshot_sop.md": {
+      "name": "cdp_screenshot_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cdp_screenshot_sop.md",
+      "type": "sop",
+      "size": 2919,
+      "mtime": 1782289195,
+      "mtime_h": "2026-06-24 16:19",
+      "layer": "L3",
+      "refs": [
+        "cdp_screenshot.py"
+      ],
+      "refed_by": []
+    },
+    "cdp_screenshot_upload.py": {
+      "name": "cdp_screenshot_upload.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cdp_screenshot_upload.py",
+      "type": "tool",
+      "size": 187,
+      "mtime": 1782276399,
+      "mtime_h": "2026-06-24 12:46",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "cfimgbed_upload.py": {
+      "name": "cfimgbed_upload.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cfimgbed_upload.py",
+      "type": "tool",
+      "size": 3465,
+      "mtime": 1782128663,
+      "mtime_h": "2026-06-22 19:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "cfimgbed_upload_skill.md",
+        "vision_sop.md"
+      ]
+    },
+    "cfimgbed_upload_skill.md": {
+      "name": "cfimgbed_upload_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cfimgbed_upload_skill.md",
+      "type": "sop",
+      "size": 2814,
+      "mtime": 1782128622,
+      "mtime_h": "2026-06-22 19:43",
+      "layer": "L3",
+      "refs": [
+        "cfimgbed_upload.py"
+      ],
+      "refed_by": []
+    },
+    "checklist_helper.py": {
+      "name": "checklist_helper.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/checklist_helper.py",
+      "type": "tool",
+      "size": 4347,
+      "mtime": 1780408126,
+      "mtime_h": "2026-06-02 21:48",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "checklist_sop.md": {
+      "name": "checklist_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/checklist_sop.md",
+      "type": "sop",
+      "size": 3695,
+      "mtime": 1780408126,
+      "mtime_h": "2026-06-02 21:48",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "cloudflare_skill.md": {
+      "name": "cloudflare_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/cloudflare_skill.md",
+      "type": "sop",
+      "size": 4536,
+      "mtime": 1782128622,
+      "mtime_h": "2026-06-22 19:43",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "code_review_principles.md": {
+      "name": "code_review_principles.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/code_review_principles.md",
+      "type": "sop",
+      "size": 3852,
+      "mtime": 1779700445,
+      "mtime_h": "2026-05-25 17:14",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "review_sop.md"
+      ]
+    },
+    "computer_use.md": {
+      "name": "computer_use.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/computer_use.md",
+      "type": "sop",
+      "size": 3567,
+      "mtime": 1781602586,
+      "mtime_h": "2026-06-16 17:36",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "docker_cicd_sop.md": {
+      "name": "docker_cicd_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/docker_cicd_sop.md",
+      "type": "sop",
+      "size": 1569,
+      "mtime": 1781678021,
+      "mtime_h": "2026-06-17 14:33",
+      "layer": "L3",
+      "refs": [
+        "github_skill.md"
+      ],
+      "refed_by": [
+        "github_skill.md"
+      ]
+    },
+    "docker_local_deploy_sop.md": {
+      "name": "docker_local_deploy_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/docker_local_deploy_sop.md",
+      "type": "sop",
+      "size": 946,
+      "mtime": 1780385709,
+      "mtime_h": "2026-06-02 15:35",
+      "layer": "L3",
+      "refs": [
+        "new_api_deploy_experience_sop.md"
+      ],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill.md": {
+      "name": "flow_runner_local_dev_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill.md",
+      "type": "sop",
+      "size": 2075,
+      "mtime": 1780629100,
+      "mtime_h": "2026-06-05 11:11",
+      "layer": "L3",
+      "refs": [
+        "flow_runner_local_dev_skill_rules.md"
+      ],
+      "refed_by": [
+        "flow_runner_sop.md"
+      ]
+    },
+    "flow_runner_local_dev_skill_phase_a_b.md": {
+      "name": "flow_runner_local_dev_skill_phase_a_b.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_phase_a_b.md",
+      "type": "sop",
+      "size": 894,
+      "mtime": 1779786516,
+      "mtime_h": "2026-05-26 17:08",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill_phase_c.md": {
+      "name": "flow_runner_local_dev_skill_phase_c.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_phase_c.md",
+      "type": "sop",
+      "size": 888,
+      "mtime": 1779786516,
+      "mtime_h": "2026-05-26 17:08",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill_phase_d_e.md": {
+      "name": "flow_runner_local_dev_skill_phase_d_e.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_phase_d_e.md",
+      "type": "sop",
+      "size": 1880,
+      "mtime": 1780649194,
+      "mtime_h": "2026-06-05 16:46",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill_phase_f.md": {
+      "name": "flow_runner_local_dev_skill_phase_f.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_phase_f.md",
+      "type": "sop",
+      "size": 801,
+      "mtime": 1779786516,
+      "mtime_h": "2026-05-26 17:08",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill_pitfalls.md": {
+      "name": "flow_runner_local_dev_skill_pitfalls.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_pitfalls.md",
+      "type": "sop",
+      "size": 1051,
+      "mtime": 1781676635,
+      "mtime_h": "2026-06-17 14:10",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "flow_runner_local_dev_skill_rules.md": {
+      "name": "flow_runner_local_dev_skill_rules.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_local_dev_skill_rules.md",
+      "type": "sop",
+      "size": 1141,
+      "mtime": 1781676635,
+      "mtime_h": "2026-06-17 14:10",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "flow_runner_local_dev_skill.md"
+      ]
+    },
+    "flow_runner_skill.md": {
+      "name": "flow_runner_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_skill.md",
+      "type": "sop",
+      "size": 3317,
+      "mtime": 1780825480,
+      "mtime_h": "2026-06-07 17:44",
+      "layer": "L3",
+      "refs": [
+        "github_skill.md",
+        "nacos_skill.md",
+        "ql_openapi.md"
+      ],
+      "refed_by": [
+        "flow_runner_sop.md",
+        "ql_openapi.md"
+      ]
+    },
+    "flow_runner_sop.md": {
+      "name": "flow_runner_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/flow_runner_sop.md",
+      "type": "sop",
+      "size": 4109,
+      "mtime": 1780630164,
+      "mtime_h": "2026-06-05 11:29",
+      "layer": "L3",
+      "refs": [
+        "flow_runner_local_dev_skill.md",
+        "flow_runner_skill.md",
+        "github_skill.md"
+      ],
+      "refed_by": []
+    },
+    "frontend_dev_verify_sop.md": {
+      "name": "frontend_dev_verify_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/frontend_dev_verify_sop.md",
+      "type": "sop",
+      "size": 3246,
+      "mtime": 1782304858,
+      "mtime_h": "2026-06-24 20:40",
+      "layer": "L3",
+      "refs": [
+        "ocr_utils.py"
+      ],
+      "refed_by": []
+    },
+    "ga_admin_pets_sop.md": {
+      "name": "ga_admin_pets_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ga_admin_pets_sop.md",
+      "type": "sop",
+      "size": 10507,
+      "mtime": 1780408747,
+      "mtime_h": "2026-06-02 21:59",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "ga_web_deploy_sop.md": {
+      "name": "ga_web_deploy_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ga_web_deploy_sop.md",
+      "type": "sop",
+      "size": 2556,
+      "mtime": 1780825217,
+      "mtime_h": "2026-06-07 17:40",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "genericagent_admin_nas_local_start.md": {
+      "name": "genericagent_admin_nas_local_start.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/genericagent_admin_nas_local_start.md",
+      "type": "sop",
+      "size": 10393,
+      "mtime": 1782196986,
+      "mtime_h": "2026-06-23 14:43",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "genericagent_launchpyw_sop.md": {
+      "name": "genericagent_launchpyw_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/genericagent_launchpyw_sop.md",
+      "type": "sop",
+      "size": 1861,
+      "mtime": 1776709245,
+      "mtime_h": "2026-04-21 02:20",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "github_skill.md": {
+      "name": "github_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/github_skill.md",
+      "type": "sop",
+      "size": 11376,
+      "mtime": 1782312235,
+      "mtime_h": "2026-06-24 22:43",
+      "layer": "L3",
+      "refs": [
+        "docker_cicd_sop.md"
+      ],
+      "refed_by": [
+        "docker_cicd_sop.md",
+        "flow_runner_skill.md",
+        "flow_runner_sop.md"
+      ]
+    },
+    "gitnexus_skill.md": {
+      "name": "gitnexus_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/gitnexus_skill.md",
+      "type": "sop",
+      "size": 3828,
+      "mtime": 1782312243,
+      "mtime_h": "2026-06-24 22:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "goal_hive_sop.md": {
+      "name": "goal_hive_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/goal_hive_sop.md",
+      "type": "sop",
+      "size": 7565,
+      "mtime": 1782318960,
+      "mtime_h": "2026-06-25 00:36",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "hatch_pet_sop.md": {
+      "name": "hatch_pet_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/hatch_pet_sop.md",
+      "type": "sop",
+      "size": 10803,
+      "mtime": 1780408747,
+      "mtime_h": "2026-06-02 21:59",
+      "layer": "L3",
+      "refs": [
+        "subagent.md"
+      ],
+      "refed_by": []
+    },
+    "incubator_sop.md": {
+      "name": "incubator_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/incubator_sop.md",
+      "type": "sop",
+      "size": 1247,
+      "mtime": 1781602586,
+      "mtime_h": "2026-06-16 17:36",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "keychain.py": {
+      "name": "keychain.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/keychain.py",
+      "type": "tool",
+      "size": 2273,
+      "mtime": 1779700445,
+      "mtime_h": "2026-05-25 17:14",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "ljqCtrl.py": {
+      "name": "ljqCtrl.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ljqCtrl.py",
+      "type": "tool",
+      "size": 8613,
+      "mtime": 1782199055,
+      "mtime_h": "2026-06-23 15:17",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "ljqCtrl_sop.md": {
+      "name": "ljqCtrl_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ljqCtrl_sop.md",
+      "type": "sop",
+      "size": 5361,
+      "mtime": 1782199055,
+      "mtime_h": "2026-06-23 15:17",
+      "layer": "L3",
+      "refs": [
+        "macljqCtrl.py"
+      ],
+      "refed_by": []
+    },
+    "llm_wiki_skill.md": {
+      "name": "llm_wiki_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/llm_wiki_skill.md",
+      "type": "sop",
+      "size": 8218,
+      "mtime": 1781607497,
+      "mtime_h": "2026-06-16 18:58",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "macljqCtrl.py": {
+      "name": "macljqCtrl.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/macljqCtrl.py",
+      "type": "tool",
+      "size": 24647,
+      "mtime": 1782199055,
+      "mtime_h": "2026-06-23 15:17",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "ljqCtrl_sop.md"
+      ]
+    },
+    "memory_cleanup_sop.md": {
+      "name": "memory_cleanup_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/memory_cleanup_sop.md",
+      "type": "sop",
+      "size": 3344,
+      "mtime": 1782199055,
+      "mtime_h": "2026-06-23 15:17",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "memory_management_sop.md": {
+      "name": "memory_management_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/memory_management_sop.md",
+      "type": "sop",
+      "size": 6231,
+      "mtime": 1777619752,
+      "mtime_h": "2026-05-01 15:15",
+      "layer": "L0",
+      "refs": [],
+      "refed_by": []
+    },
+    "mysql_docker_sop.md": {
+      "name": "mysql_docker_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/mysql_docker_sop.md",
+      "type": "sop",
+      "size": 1450,
+      "mtime": 1779807806,
+      "mtime_h": "2026-05-26 23:03",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "nacos_skill.md": {
+      "name": "nacos_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/nacos_skill.md",
+      "type": "sop",
+      "size": 14008,
+      "mtime": 1782128640,
+      "mtime_h": "2026-06-22 19:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "flow_runner_skill.md"
+      ]
+    },
+    "nas_ingress_sop.md": {
+      "name": "nas_ingress_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/nas_ingress_sop.md",
+      "type": "sop",
+      "size": 1759,
+      "mtime": 1781678090,
+      "mtime_h": "2026-06-17 14:34",
+      "layer": "L3",
+      "refs": [
+        "new_api_deploy_experience_sop.md"
+      ],
+      "refed_by": [
+        "new_api_deploy_experience_sop.md"
+      ]
+    },
+    "new_api_deploy_experience_sop.md": {
+      "name": "new_api_deploy_experience_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/new_api_deploy_experience_sop.md",
+      "type": "sop",
+      "size": 3867,
+      "mtime": 1781678100,
+      "mtime_h": "2026-06-17 14:35",
+      "layer": "L3",
+      "refs": [
+        "nas_ingress_sop.md"
+      ],
+      "refed_by": [
+        "docker_local_deploy_sop.md",
+        "nas_ingress_sop.md"
+      ]
+    },
+    "ocr_utils.py": {
+      "name": "ocr_utils.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ocr_utils.py",
+      "type": "tool",
+      "size": 3862,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "frontend_dev_verify_sop.md",
+        "tmwebdriver_sop.md",
+        "vision_sop.md"
+      ]
+    },
+    "plan_sop.md": {
+      "name": "plan_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/plan_sop.md",
+      "type": "sop",
+      "size": 12087,
+      "mtime": 1780127071,
+      "mtime_h": "2026-05-30 15:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "procmem_scanner.py": {
+      "name": "procmem_scanner.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/procmem_scanner.py",
+      "type": "tool",
+      "size": 4950,
+      "mtime": 1776409897,
+      "mtime_h": "2026-04-17 15:11",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "procmem_scanner_sop.md"
+      ]
+    },
+    "procmem_scanner_sop.md": {
+      "name": "procmem_scanner_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/procmem_scanner_sop.md",
+      "type": "sop",
+      "size": 1506,
+      "mtime": 1777619752,
+      "mtime_h": "2026-05-01 15:15",
+      "layer": "L3",
+      "refs": [
+        "procmem_scanner.py"
+      ],
+      "refed_by": []
+    },
+    "project_mode_sop.md": {
+      "name": "project_mode_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/project_mode_sop.md",
+      "type": "sop",
+      "size": 2123,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "qinglong_openapi.py": {
+      "name": "qinglong_openapi.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/qinglong_openapi.py",
+      "type": "tool",
+      "size": 7701,
+      "mtime": 1780595730,
+      "mtime_h": "2026-06-05 01:55",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "ql_openapi.md": {
+      "name": "ql_openapi.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ql_openapi.md",
+      "type": "sop",
+      "size": 3929,
+      "mtime": 1781678129,
+      "mtime_h": "2026-06-17 14:35",
+      "layer": "L3",
+      "refs": [
+        "flow_runner_skill.md"
+      ],
+      "refed_by": [
+        "flow_runner_skill.md"
+      ]
+    },
+    "release_update_skill.md": {
+      "name": "release_update_skill.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/release_update_skill.md",
+      "type": "sop",
+      "size": 985,
+      "mtime": 1777524809,
+      "mtime_h": "2026-04-30 12:53",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "review_sop.md": {
+      "name": "review_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/review_sop.md",
+      "type": "sop",
+      "size": 6731,
+      "mtime": 1779700445,
+      "mtime_h": "2026-05-25 17:14",
+      "layer": "L3",
+      "refs": [
+        "code_review_principles.md"
+      ],
+      "refed_by": []
+    },
+    "scheduled_task_sop.md": {
+      "name": "scheduled_task_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/scheduled_task_sop.md",
+      "type": "sop",
+      "size": 2644,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "screenshot_upload.py": {
+      "name": "screenshot_upload.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/screenshot_upload.py",
+      "type": "tool",
+      "size": 4237,
+      "mtime": 1782010198,
+      "mtime_h": "2026-06-21 10:49",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "cdp_screenshot.py",
+        "tmwebdriver_sop.md",
+        "vision_sop.md"
+      ]
+    },
+    "subagent.md": {
+      "name": "subagent.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/subagent.md",
+      "type": "sop",
+      "size": 16052,
+      "mtime": 1782305279,
+      "mtime_h": "2026-06-24 20:47",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "hatch_pet_sop.md",
+        "supervisor_sop.md"
+      ]
+    },
+    "supervisor_sop.md": {
+      "name": "supervisor_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/supervisor_sop.md",
+      "type": "sop",
+      "size": 3669,
+      "mtime": 1781602586,
+      "mtime_h": "2026-06-16 17:36",
+      "layer": "L3",
+      "refs": [
+        "subagent.md"
+      ],
+      "refed_by": []
+    },
+    "tavily_search_sop.md": {
+      "name": "tavily_search_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/tavily_search_sop.md",
+      "type": "sop",
+      "size": 5130,
+      "mtime": 1782128655,
+      "mtime_h": "2026-06-22 19:44",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "tgbot_sop.md": {
+      "name": "tgbot_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/tgbot_sop.md",
+      "type": "sop",
+      "size": 3987,
+      "mtime": 1781696745,
+      "mtime_h": "2026-06-17 19:45",
+      "layer": "L3",
+      "refs": [
+        "adguard_mihomo_sop.md"
+      ],
+      "refed_by": [
+        "adguard_mihomo_sop.md"
+      ]
+    },
+    "tmwebdriver_sop.md": {
+      "name": "tmwebdriver_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/tmwebdriver_sop.md",
+      "type": "sop",
+      "size": 20618,
+      "mtime": 1782276457,
+      "mtime_h": "2026-06-24 12:47",
+      "layer": "L3",
+      "refs": [
+        "cdp_screenshot.py",
+        "ocr_utils.py",
+        "screenshot_upload.py"
+      ],
+      "refed_by": []
+    },
+    "ui_detect.py": {
+      "name": "ui_detect.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/ui_detect.py",
+      "type": "tool",
+      "size": 9039,
+      "mtime": 1782199055,
+      "mtime_h": "2026-06-23 15:17",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "vaultwarden_native_api.py": {
+      "name": "vaultwarden_native_api.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vaultwarden_native_api.py",
+      "type": "tool",
+      "size": 13828,
+      "mtime": 1782128442,
+      "mtime_h": "2026-06-22 19:40",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "vaultwarden_sop.md"
+      ]
+    },
+    "vaultwarden_sop.md": {
+      "name": "vaultwarden_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vaultwarden_sop.md",
+      "type": "sop",
+      "size": 9263,
+      "mtime": 1782128686,
+      "mtime_h": "2026-06-22 19:44",
+      "layer": "L3",
+      "refs": [
+        "vaultwarden_native_api.py",
+        "vaultwarden_web_skill.py"
+      ],
+      "refed_by": []
+    },
+    "vaultwarden_web_skill.py": {
+      "name": "vaultwarden_web_skill.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vaultwarden_web_skill.py",
+      "type": "tool",
+      "size": 10566,
+      "mtime": 1781986788,
+      "mtime_h": "2026-06-21 04:19",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "vaultwarden_sop.md"
+      ]
+    },
+    "verify_sop.md": {
+      "name": "verify_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/verify_sop.md",
+      "type": "sop",
+      "size": 2551,
+      "mtime": 1781234800,
+      "mtime_h": "2026-06-12 11:26",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "vision_api.py": {
+      "name": "vision_api.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vision_api.py",
+      "type": "tool",
+      "size": 12479,
+      "mtime": 1782129867,
+      "mtime_h": "2026-06-22 20:04",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": [
+        "vision_sop.md"
+      ]
+    },
+    "vision_api.template.py": {
+      "name": "vision_api.template.py",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vision_api.template.py",
+      "type": "tool",
+      "size": 5547,
+      "mtime": 1781602586,
+      "mtime_h": "2026-06-16 17:36",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "vision_sop.md": {
+      "name": "vision_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vision_sop.md",
+      "type": "sop",
+      "size": 12216,
+      "mtime": 1782276451,
+      "mtime_h": "2026-06-24 12:47",
+      "layer": "L3",
+      "refs": [
+        "cdp_screenshot.py",
+        "cfimgbed_upload.py",
+        "ocr_utils.py",
+        "screenshot_upload.py",
+        "vision_api.py"
+      ],
+      "refed_by": []
+    },
+    "vue3_component_sop.md": {
+      "name": "vue3_component_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/vue3_component_sop.md",
+      "type": "sop",
+      "size": 9427,
+      "mtime": 1778301419,
+      "mtime_h": "2026-05-09 12:36",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    },
+    "web_setup_sop.md": {
+      "name": "web_setup_sop.md",
+      "path": "/vol1/1000/开发/NAS/GenericAgent/memory/web_setup_sop.md",
+      "type": "sop",
+      "size": 1292,
+      "mtime": 1776652182,
+      "mtime_h": "2026-04-20 10:29",
+      "layer": "L3",
+      "refs": [],
+      "refed_by": []
+    }
+  },
+  "stats": {
+    "total": 72,
+    "withOutgoing": 23,
+    "withIncoming": 22,
+    "edges": 34,
+    "generatedAt": 1782359556
+  }
+}

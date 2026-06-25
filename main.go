@@ -56,6 +56,7 @@ func main() {
 	url := "http://" + addr
 	server := newHTTPServer(addr, srv.Routes())
 	go srv.StartAutostartServices()
+	go srv.WikiBoot()
 	go func() {
 		log.Printf("GenericAgent Admin Go listening on %s", url)
 		if launch.Headless {
