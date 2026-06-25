@@ -138,7 +138,7 @@ func CheckIngestStatus(wikiDir string) (*IngestResult, error) {
 
 // 生成 ingest state 文件路径
 func ingestStatePath(wikiDir string) string {
-	return filepath.Join(wikiDir, ".ingest_state.json")
+	return filepath.Join(wikiDir, "ingest_state.json")
 }
 
 func loadIngestState(wikiDir string) (*IngestResult, error) {
