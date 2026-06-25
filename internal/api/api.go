@@ -1264,9 +1264,14 @@ func (s *Server) wikiFile(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, "path required")
 		return
 	}
+	// Files are stored under wikiDir/raw/
+	cleanPath := filepath.Clean(filePath)
+	if !strings.HasPrefix(cleanPath, "raw") {
+		cleanPath = filepath.Join("raw", cleanPath)
+	}
+	fullPath := filepath.Join(wikiDir, cleanPath)
 	// Prevent directory traversal
-	fullPath := filepath.Join(wikiDir, filepath.Clean(filePath))
-	if !strings.HasPrefix(fullPath, wikiDir) {
+	if !strings.HasPrefix(fullPath, filepath.Join(wikiDir, "raw")) {
 		bad(w, 403, "forbidden")
 		return
 	}
