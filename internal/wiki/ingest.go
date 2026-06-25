@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +32,7 @@ type IngestResult struct {
 //    - GA_ROOT 环境变量传入
 //    - 将 prompt 输出到子进程 stdin
 // 4. 返回子进程 PID
-func StartIngest(wikiDir, gaRoot string) (*IngestResult, error) {
+func StartIngest(wikiDir, gaRoot string, llmNo int) (*IngestResult, error) {
 	if strings.TrimSpace(wikiDir) == "" {
 		return nil, errors.New("wikiDir is empty")
 	}
@@ -77,7 +76,6 @@ func StartIngest(wikiDir, gaRoot string) (*IngestResult, error) {
 		cmd = exec.Command("python3", "-c", generateIngestPrompt(wikiDir))
 	}
 	cmd.Dir = gaRoot
-	cmd.Stdin = strings.NewReader(generateIngestPrompt(wikiDir))
 
 	// 设置环境变量
 	env := os.Environ()
@@ -86,7 +84,7 @@ func StartIngest(wikiDir, gaRoot string) (*IngestResult, error) {
 		"RAW_DIR="+rawDir,
 		"GA_ROOT="+gaRoot,
 		"INGEST_STATE="+ingestStatePath(wikiDir),
-		"MODEL_NO=0",
+		fmt.Sprintf("MODEL_NO=%d", llmNo),
 		"PYTHONIOENCODING=utf-8",
 		"PYTHONUTF8=1",
 	)
@@ -171,5 +169,5 @@ func saveIngestState(wikiDir string, state *IngestResult) error {
 // hideChildWindow 隐藏子进程窗口（Linux 空实现）
 func hideChildWindow(cmd *exec.Cmd) {
 	// Linux 下无操作
-	_ = bytes.NewReader(nil)
+	_ = cmd
 }

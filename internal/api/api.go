@@ -1108,6 +1108,8 @@ func (s *Server) wikiStatus(w http.ResponseWriter, r *http.Request) {
 		"ended":     state.EndedAt,
 		"error":     state.Error,
 		"file_count": count,
+		"files":     files,
+		"raw_count": count,
 		"wiki_dir":  wikiDir,
 	})
 }
@@ -1182,7 +1184,7 @@ func (s *Server) wikiIngest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	gaRoot := s.CfgStore.Cfg.GARoot
-	result, err := wiki.StartIngest(wikiDir, gaRoot)
+	result, err := wiki.StartIngest(wikiDir, gaRoot, llmNo)
 	if err != nil {
 		bad(w, 500, "failed to start ingest: "+err.Error())
 		return
