@@ -44,6 +44,11 @@ func StartIngest(wikiDir, gaRoot string, llmNo int) (*IngestResult, error) {
 		return nil, fmt.Errorf("raw directory does not exist: %s", rawDir)
 	}
 
+	// Step 1: SyncMemoryToRaw (plan step 2.3)
+	if _, err := SyncMemoryToRaw(gaRoot, wikiDir); err != nil {
+		return nil, fmt.Errorf("sync failed: %w", err)
+	}
+
 	// 加载当前状态
 	state, err := loadIngestState(wikiDir)
 	if err != nil {
