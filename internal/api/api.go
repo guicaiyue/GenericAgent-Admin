@@ -1110,9 +1110,7 @@ func (s *Server) wikiSync(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, "wiki_dir or ga_root not configured")
 		return
 	}
-	memoryDir := filepath.Join(gaRoot, "memory")
-	rawDir := filepath.Join(wikiDir, "raw")
-	result, err := wiki.SyncMemory(memoryDir, rawDir)
+	result, err := wiki.SyncMemoryToRaw(gaRoot, wikiDir)
 	if err != nil {
 		bad(w, 500, err.Error())
 		return
@@ -1131,9 +1129,20 @@ func (s *Server) wikiIngest(w http.ResponseWriter, r *http.Request) {
 		bad(w, 400, "wiki_dir not configured")
 		return
 	}
+	// P0 fix: read llm_no from query param (frontend passes ?llm_no=X)
+	// then fall back to JSON body
+	llmNo := 0
+	if s := r.URL.Query().Get("llm_no"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil {
+			llmNo = n
+		}
+	}
 	var req wiki.IngestRequest
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&req)
+		if llmNo == 0 && req.LLMNo > 0 {
+			llmNo = req.LLMNo
+		}
 	}
 	state := wiki.LoadState(wikiDir)
 	if state.Status == "running" && state.PID > 0 && wiki.IsProcessAlive(state.PID) {

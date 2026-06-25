@@ -27,7 +27,7 @@ type WikiFile struct {
 
 // IngestRequest is the request body for wiki ingest.
 type IngestRequest struct {
-	ModelNo int `json:"model_no"`
+	LLMNo int `json:"llm_no"`
 }
 
 func stateFile(wikiDir string) string {
