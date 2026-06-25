@@ -17,6 +17,7 @@ type SlashCommandItem struct {
 type AppConfig struct {
 	GARoot             string            `json:"ga_root"`
 	ChatDataDir        string            `json:"chat_data_dir"`
+	WikiDir            string            `json:"wiki_dir"`
 	Host               string            `json:"host"`
 	Port               int               `json:"port"`
 	LogTailLines       int               `json:"log_tail_lines"`
@@ -56,6 +57,19 @@ func Validate(cfg AppConfig) error {
 	if chatDir := strings.TrimSpace(cfg.ChatDataDir); chatDir != "" {
 		if st, err := os.Stat(chatDir); err == nil && !st.IsDir() {
 			return fmt.Errorf("chat_data_dir is not a directory")
+		}
+	}
+	if wikiDir := strings.TrimSpace(cfg.WikiDir); wikiDir != "" {
+		if st, err := os.Stat(wikiDir); err == nil {
+			if !st.IsDir() {
+				return fmt.Errorf("wiki_dir is not a directory")
+			}
+		} else if os.IsNotExist(err) {
+			if err := os.MkdirAll(wikiDir, 0755); err != nil {
+				return fmt.Errorf("failed to create wiki_dir: %w", err)
+			}
+		} else {
+			return fmt.Errorf("wiki_dir stat error: %w", err)
 		}
 	}
 	if py := strings.TrimSpace(cfg.PythonPath); py != "" {
