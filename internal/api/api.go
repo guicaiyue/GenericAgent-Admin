@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -1018,7 +1019,7 @@ func (s *Server) ShutdownCleanup() {
 	s.CloseChatWorkers()
 }
 
-// WikiBoot initializes wiki directory structure in the background on server startup.
+// WikiBoot initializes wiki directory structure and recovers ingest state on startup.
 func (s *Server) WikiBoot() {
 	wikiDir := s.CfgStore.Cfg.WikiDir
 	if wikiDir == "" {
@@ -1045,6 +1046,40 @@ if __name__ == "__main__":
 `
 		_ = os.WriteFile(scriptPath, []byte(content), 0644)
 	}
+	// --- startup recovery ---
+	state := wiki.LoadState(wikiDir)
+	if state != nil && state.Status == "running" && state.PID > 0 {
+		if !wiki.IsProcessAlive(state.PID) {
+			log.Printf("[WikiBoot] ingest PID %d is dead; marking state as error", state.PID)
+			state.Status = "error"
+			state.Error = "server restart — process lost"
+			wiki.SaveState(wikiDir, state)
+		} else {
+			log.Printf("[WikiBoot] ingest PID %d is still running", state.PID)
+		}
+	}
+	// Ensure index.md exists
+	indexPath := filepath.Join(wikiDir, "index.md")
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		_ = os.WriteFile(indexPath, []byte("# Wiki Root\n\nEmpty.\n"), 0644)
+	}
+	// Background goroutine to poll state changes (for frontend status polling)
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			state := wiki.LoadState(wikiDir)
+			if state == nil {
+				continue
+			}
+			if state.Status == "running" && state.PID > 0 && !wiki.IsProcessAlive(state.PID) {
+				log.Printf("[WikiBoot] ingest PID %d died unexpectedly; marking error", state.PID)
+				state.Status = "error"
+				state.Error = "process died"
+				wiki.SaveState(wikiDir, state)
+			}
+		}
+	}()
 }
 
 // wikiStatus returns the current ingest state and file count.
