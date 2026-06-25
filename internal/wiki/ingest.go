@@ -67,11 +67,14 @@ func StartIngest(wikiDir, gaRoot string, llmNo int) (*IngestResult, error) {
 		return nil, err
 	}
 
-	// 准备子进程
-	scriptPath := filepath.Join(gaRoot, "reflect", "wiki_ingest.py")
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		// 如果脚本不存在，创建占位脚本（仅返回提示）
-		scriptPath = ""
+	// 准备子进程：优先使用 embed 提取的脚本
+	scriptPath := filepath.Join(wikiDir, "scripts", "wiki_ingest.py")
+	if err := ExtractWikiIngestScript(scriptPath); err != nil {
+		// embed 失败，回退到 gaRoot/reflect/wiki_ingest.py
+		scriptPath = filepath.Join(gaRoot, "reflect", "wiki_ingest.py")
+		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+			scriptPath = ""
+		}
 	}
 
 	var cmd *exec.Cmd
