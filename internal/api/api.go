@@ -1096,21 +1096,29 @@ func (s *Server) wikiStatus(w http.ResponseWriter, r *http.Request) {
 		_ = wiki.SaveState(wikiDir, state)
 	}
 	rawDir := filepath.Join(wikiDir, "raw")
-	files, _ := wiki.ListFiles(rawDir)
-	count := 0
-	if files != nil {
-		count = len(files)
+	allFiles, _ := wiki.ListFiles(rawDir)
+	// Only count/show .md files
+	files := make([]wiki.WikiFile, 0)
+	if allFiles != nil {
+		for _, f := range allFiles {
+			if strings.HasSuffix(strings.ToLower(f.Path), ".md") {
+				files = append(files, f)
+			}
+		}
+	}
+	if files == nil {
+		files = []wiki.WikiFile{}
 	}
 	writeJSON(w, map[string]interface{}{
-		"status":    state.Status,
-		"pid":       state.PID,
-		"started":   state.StartedAt,
-		"ended":     state.EndedAt,
-		"error":     state.Error,
-		"file_count": count,
-		"files":     files,
-		"raw_count": count,
-		"wiki_dir":  wikiDir,
+		"status":     state.Status,
+		"pid":        state.PID,
+		"started":    state.StartedAt,
+		"ended":      state.EndedAt,
+		"error":      state.Error,
+		"file_count": len(files),
+		"files":      files,
+		"raw_count":  len(files),
+		"wiki_dir":   wikiDir,
 	})
 }
 
@@ -1131,10 +1139,17 @@ func (s *Server) wikiFiles(w http.ResponseWriter, r *http.Request) {
 		bad(w, 500, err.Error())
 		return
 	}
-	if files == nil {
-		files = []wiki.WikiFile{}
+	// Only show .md files in file list
+	filtered := make([]wiki.WikiFile, 0, len(files))
+	for _, f := range files {
+		if strings.HasSuffix(strings.ToLower(f.Path), ".md") {
+			filtered = append(filtered, f)
+		}
 	}
-	writeJSON(w, map[string]interface{}{"files": files, "count": len(files)})
+	if filtered == nil {
+		filtered = []wiki.WikiFile{}
+	}
+	writeJSON(w, map[string]interface{}{"files": filtered, "count": len(filtered)})
 }
 
 // wikiSync copies new memory files into wiki/raw.

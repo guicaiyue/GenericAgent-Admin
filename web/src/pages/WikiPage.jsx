@@ -37,6 +37,7 @@ function renderMarkdown(text) {
 
 export default function WikiPage({ t, cfg, api: apiFn }) {
   const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [selectedFile, setSelectedFile] = useState('')
@@ -53,6 +54,8 @@ export default function WikiPage({ t, cfg, api: apiFn }) {
     } catch (e) {
       setMsg(e.message)
       return null
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -84,9 +87,9 @@ export default function WikiPage({ t, cfg, api: apiFn }) {
     if (!confirmDanger('wiki-ingest', t?.confirmIngest || '使用 AI 重建 wiki index？')) return
     setBusy(true); setMsg(''); setIngestLog('')
     try {
-      const d = await (apiFn || api)(`/api/wiki/ingest?llm_no=${selectedLLM}`, { dangerous: true, method: 'POST', body: '{}' })
-      setStatus(d)
-      setMsg('Wiki 重建任务已启动，请刷新状态查看进度')
+      await (apiFn || api)(`/api/wiki/ingest?llm_no=${selectedLLM}`, { dangerous: true, method: 'POST', body: '{}' })
+      await refresh()
+      setMsg('Wiki 重建任务已启动')
     } catch (e) { setMsg(`重建失败：${e.message}`) }
     finally { setBusy(false) }
   }
@@ -135,7 +138,9 @@ export default function WikiPage({ t, cfg, api: apiFn }) {
         {/* File list */}
         <div style={{border:'1px solid #333',borderRadius:6,padding:8,overflow:'auto',maxHeight:500}}>
           <div style={{fontSize:11,marginBottom:6,color:'#888'}}>{t?.uploadedFiles || '文件列表'}</div>
-          {files.length === 0
+          {loading
+            ? <p style={{fontSize:12,color:'#666'}}>加载中...</p>
+            : files.length === 0
             ? <p style={{fontSize:12,color:'#666'}}>暂无文件</p>
             : files.map(f => (
               <button key={f.path} onClick={() => handleFileClick(f.path)}
