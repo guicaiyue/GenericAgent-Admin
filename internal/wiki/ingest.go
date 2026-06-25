@@ -81,7 +81,15 @@ func StartIngest(wikiDir, gaRoot string) (*IngestResult, error) {
 
 	// 设置环境变量
 	env := os.Environ()
-	env = append(env, "WIKI_DIR="+wikiDir, "GA_ROOT="+gaRoot, "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
+	env = append(env,
+		"WIKI_DIR="+wikiDir,
+		"RAW_DIR="+rawDir,
+		"GA_ROOT="+gaRoot,
+		"INGEST_STATE="+ingestStatePath(wikiDir),
+		"MODEL_NO=0",
+		"PYTHONIOENCODING=utf-8",
+		"PYTHONUTF8=1",
+	)
 	cmd.Env = env
 
 	// 隐藏子进程窗口（Linux 下为空实现）
