@@ -1144,43 +1144,13 @@ func (s *Server) wikiIngest(w http.ResponseWriter, r *http.Request) {
 			llmNo = req.LLMNo
 		}
 	}
-	state := wiki.LoadState(wikiDir)
-	if state.Status == "running" && state.PID > 0 && wiki.IsProcessAlive(state.PID) {
-		bad(w, 409, "ingest already running")
-		return
-	}
-	scriptPath := filepath.Join(wikiDir, "scripts", "wiki_ingest.py")
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		bad(w, 500, "ingest script missing; restart admin to regenerate")
-		return
-	}
-	python := s.CfgStore.Cfg.PythonPath
-	if python == "" {
-		python = "python"
-	}
-	cmd := exec.Command(python, scriptPath)
-	cmd.Dir = wikiDir
-	if err := cmd.Start(); err != nil {
+	gaRoot := filepath.Dir(wikiDir) // wiki lives at $GA_ROOT/wiki
+	result, err := wiki.StartIngest(wikiDir, gaRoot)
+	if err != nil {
 		bad(w, 500, "failed to start ingest: "+err.Error())
 		return
 	}
-	newState := &wiki.IngestState{
-		Status:    "running",
-		PID:       cmd.Process.Pid,
-		StartedAt: time.Now(),
-	}
-	_ = wiki.SaveState(wikiDir, newState)
-	go func(pid int, wd string) {
-		_ = cmd.Wait()
-		final := wiki.LoadState(wd)
-		if final.PID != pid {
-			return
-		}
-		final.Status = "done"
-		final.EndedAt = time.Now()
-		_ = wiki.SaveState(wd, final)
-	}(cmd.Process.Pid, wikiDir)
-	writeJSON(w, map[string]interface{}{"pid": cmd.Process.Pid, "status": "running"})
+	writeJSON(w, map[string]interface{}{"pid": result.PID, "status": "running", "llm_no": llmNo})
 }
 
 // wikiUpload accepts a markdown file via multipart form.
