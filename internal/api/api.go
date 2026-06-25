@@ -118,6 +118,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/wiki/sync", s.requireDangerousConfirm(s.wikiSync))
 	mux.HandleFunc("/api/wiki/ingest", s.requireDangerousConfirm(s.wikiIngest))
 	mux.HandleFunc("/api/wiki/upload", s.requireDangerousConfirm(s.wikiUpload))
+	mux.HandleFunc("/api/wiki/file", s.wikiFile)
+	mux.HandleFunc("/api/wiki/delete-file", s.requireDangerousConfirm(s.wikiDeleteFile))
 	mux.HandleFunc("/api/logs/", s.logs)
 	mux.HandleFunc("/api/ga/processes", s.gaProcesses)
 	mux.HandleFunc("/api/ga/processes/kill", s.requireDangerousConfirm(s.killGAProcess))
@@ -1144,7 +1146,7 @@ func (s *Server) wikiIngest(w http.ResponseWriter, r *http.Request) {
 			llmNo = req.LLMNo
 		}
 	}
-	gaRoot := filepath.Dir(wikiDir) // wiki lives at $GA_ROOT/wiki
+	gaRoot := s.CfgStore.Cfg.GARoot
 	result, err := wiki.StartIngest(wikiDir, gaRoot)
 	if err != nil {
 		bad(w, 500, "failed to start ingest: "+err.Error())
@@ -1191,4 +1193,66 @@ func (s *Server) wikiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]interface{}{"path": dest, "size": header.Size})
+}
+
+// wikiFile returns the content of a markdown file in wiki dir.
+// GET /api/wiki/file?path=index.md
+func (s *Server) wikiFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	wikiDir := s.CfgStore.Cfg.WikiDir
+	if wikiDir == "" {
+		bad(w, 400, "wiki_dir not configured")
+		return
+	}
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		bad(w, 400, "path required")
+		return
+	}
+	// Prevent directory traversal
+	fullPath := filepath.Join(wikiDir, filepath.Clean(filePath))
+	if !strings.HasPrefix(fullPath, wikiDir) {
+		bad(w, 403, "forbidden")
+		return
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		bad(w, 404, err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"content": string(data), "path": filePath})
+}
+
+// wikiDeleteFile deletes an uploaded file from wiki dir.
+// DELETE /api/wiki/delete-file?path=...
+func (s *Server) wikiDeleteFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		bad(w, 405, "method not allowed")
+		return
+	}
+	wikiDir := s.CfgStore.Cfg.WikiDir
+	if wikiDir == "" {
+		bad(w, 400, "wiki_dir not configured")
+		return
+	}
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		bad(w, 400, "path required")
+		return
+	}
+	// Prevent directory traversal - only allow deleting from raw/uploaded/
+	fullPath := filepath.Join(wikiDir, filepath.Clean(filePath))
+	uploadedDir := filepath.Join(wikiDir, "raw", "uploaded")
+	if !strings.HasPrefix(fullPath, uploadedDir) {
+		bad(w, 403, "only uploaded files can be deleted")
+		return
+	}
+	if err := os.Remove(fullPath); err != nil {
+		bad(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"deleted": filePath})
 }
